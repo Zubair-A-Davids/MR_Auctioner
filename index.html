@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mirage Realms Auctioner</title>
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <header class="site-header">
+    <h1 class="site-title"><img src="icon.png" alt="" class="site-logo"> MR Auctioner</h1>
+    <nav>
+      <div class="nav-user-section">
+        <div id="navbar-avatar-wrap" class="navbar-avatar-wrap hidden">
+          <img id="navbar-avatar" src="" alt="avatar" class="navbar-avatar-img" />
+        </div>
+        <span id="user-greeting"></span>
+      </div>
+      <div class="nav-controls">
+        <div class="hamburger-wrap">
+          <button id="btn-hamburger" aria-label="menu" title="menu" class="hidden">☰</button>
+          <div id="hamburger-menu" class="hamburger-menu hidden">
+            <button id="btn-sell-item" class="menu-item">Sell an item</button>
+            <button id="btn-view-listings-menu" class="menu-item">View Listings</button>
+            <button id="btn-my-profile" class="menu-item">My Profile</button>
+            <button id="btn-items-sold" class="menu-item hidden">Items Sold History</button>
+            <button id="btn-admin-panel" class="menu-item hidden">Admin Panel</button>
+            <button id="btn-mod-panel" class="menu-item hidden">Moderation</button>
+            <button id="btn-mod-history" class="menu-item hidden">Moderation History</button>
+          </div>
+        </div>
+        <button id="btn-show-register" class="btn btn-primary">Register</button>
+        <button id="btn-show-login" class="btn btn-primary">Login</button>
+        <button id="btn-logout" class="btn btn-primary hidden">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <div id="site-message" class="message hidden"></div>
+
+    <section id="auth-area">
+      <div class="card hidden" id="register-card">
+        <h2>Create Account</h2>
+        <label>Username <input id="reg-username" /></label>
+        <label>Password <input id="reg-password" type="password" /></label>
+        <label>Display Name <input id="reg-displayname" /></label>
+        <div class="form-actions">
+          <button id="btn-register" class="btn btn-primary">Create account</button>
+          <button id="btn-cancel-register" class="btn">Cancel</button>
+        </div>
+        <p class="hint">Accounts are stored locally in your browser (localStorage).
+        </p>
+      </div>
+
+      <div class="card hidden" id="login-card">
+        <h2>Login</h2>
+        <label>Username <input id="login-username" /></label>
+        <label>Password <input id="login-password" type="password" /></label>
+        <div class="form-actions">
+          <button id="btn-login" class="btn btn-primary">Login</button>
+          <button id="btn-cancel-login" class="btn">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="create-listing-area" class="card hidden">
+      <h2>Create Listing</h2>
+      <button id="btn-open-item-types" class="btn btn-primary">Browse Item Types</button>
+      <label>Item name <input id="item-title" placeholder="Enter item name or select from Browse Item Types..." /></label>
+      <label>Item Type Description (read-only) <textarea id="item-type-desc" disabled class="disabled-input"></textarea></label>
+      <label>Your Listing Description <input id="item-desc" placeholder="Add details about this specific listing..." /></label>
+      <label>Price
+        <div class="price-spinner">
+          <button id="btn-price-minus" class="btn btn-accent">−</button>
+          <input id="item-price" type="number" min="1" value="1" />
+          <button id="btn-price-plus" class="btn btn-accent">+</button>
+          <img src="Gold.png" alt="gold" class="gold-icon" />
+        </div>
+      </label>
+
+      <div class="file-input">
+        <span>Image (optional)</span>
+        <label class="btn btn-primary file-label">Choose Screenshot
+          <input id="item-image" type="file" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" />
+        </label>
+      </div>
+
+      <p class="hint" id="selected-item-info"></p>
+      <img id="item-image-preview" alt="preview" class="hidden preview-image" />
+      <input type="hidden" id="editing-id" />
+      <div class="form-actions">
+        <button id="btn-create-listing" class="btn btn-primary">Create listing</button>
+        <button id="btn-view-listings" class="btn btn-accent">View Listings</button>
+        <button id="btn-cancel-edit" class="btn btn-accent hidden">Cancel</button>
+      </div>
+    </section>
+
+<section id="landing" class="card">
+  <h2>Welcome to Mirage Realms Auctioner</h2>
+  <p class="hint">A small Auction House fan site for Mirage Realms, register and login to sell items.</p>
+  <p class="hint">NOTE: All Mirage Realms Rules apply to this site. Read the <a href="https://miragerealms.co.uk/support/knowledgebase.php?article=5" target="_blank" rel="noopener noreferrer" class="accent-text">Mirage Realms Rules</a></p>
+  <p class="hint"><span class="accent-text">Browse active listings below.</span> Enjoy your stay and message <a href="#" class="seller-link" data-user="Fukarizoh">@Fukarizoh</a> on Discord for any bugs or issues :D</p>
+</section>
+
+<section id="listings-section" class="hidden">
+  <h2>Active Listings</h2>
+    <div id="search-filters" class="card search-filters-card">
+      <div class="filter-header">
+        <h3 style="margin:0;color:var(--primary);font-size:1rem">Search & Filters</h3>
+        <button id="toggle-filters" class="btn btn-small btn-primary" aria-label="Toggle filters">−</button>
+      </div>
+      <div id="filter-content" class="filter-content">
+        <div class="search-grid">
+          <div class="search-field">
+            <label>Search by Name</label>
+            <input id="search-name" type="text" placeholder="Filter by Item or User name..." />
+          </div>
+          <div class="search-field">
+            <label>Sort by Price</label>
+            <select id="search-price" class="search-select">
+              <option value="none">No Sort</option>
+              <option value="low-high">Low to High</option>
+              <option value="high-low">High to Low</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label>Sort by Date</label>
+            <select id="search-sort" class="search-select">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+          </div>
+        </div>
+        <div id="seller-filter-chip" class="filter-chip hidden" aria-live="polite">
+          <span id="seller-filter-text"></span>
+          <button id="clear-seller-filter" class="chip-clear" title="Clear seller filter" aria-label="Clear seller filter">×</button>
+        </div>
+        <button id="search-reset" class="btn btn-primary full-width">Reset Filters</button>
+      </div>
+    </div>
+    <button id="btn-sell-listings" class="btn btn-primary" style="width:100%;margin-top:.5rem;margin-bottom:1rem">Sell an Item</button>
+    </div>
+
+  <div id="listings"></div>
+</section>
+
+  </main>
+
+  <footer>
+    <small>Mirage Realms Unofficial Experimental Auction House</small>
+  </footer>
+
+  <script src="items.js"></script>
+  <script src="app.js"></script>
+
+  <!-- Item Type Selector Modal -->
+  <div id="item-type-modal" class="modal hidden">
+    <div class="modal-inner">
+      <h2>Select an Item Type</h2>
+      <div id="item-type-categories" class="modal-cats"></div>
+      <div id="item-type-gallery" class="modal-gallery"></div>
+      <button id="close-item-modal" class="btn btn-accent">Close</button>
+    </div>
+  </div>
+
+  <!-- Profile Modal (edit) -->
+  <div id="profile-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark">
+      <h2 class="profile-modal-title">Your Profile</h2>
+      <hr />
+      <p><strong>Username:</strong> <span id="profile-username"></span></p>
+      <label>Display Name <input id="profile-displayname" /></label>
+      <label>Discord Name <input id="profile-discord" placeholder="e.g. user#1234" /></label>
+      <label>Bio <textarea id="profile-bio" rows="4"></textarea></label>
+      <div class="profile-avatar-section">
+        <label style="margin-bottom: 0.25rem; display: block; font-weight: 600;">Avatar</label>
+        <div class="avatar-upload-row">
+          <div id="profile-avatar-wrap" class="avatar-wrap">
+            <img id="profile-avatar-preview" src="" alt="avatar" class="avatar-img hidden" />
+          </div>
+          <label class="btn btn-primary btn-change-avatar">Change Avatar <input id="profile-avatar" type="file" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" /></label>
+        </div>
+      </div>
+
+      <hr />
+      <h4>Change Password</h4>
+      <label>Current Password <input id="profile-current-pass" type="password" /></label>
+      <label>New Password <input id="profile-new-pass" type="password" /></label>
+      <label>Confirm New <input id="profile-new-pass-confirm" type="password" /></label>
+      <div class="form-actions">
+        <button id="profile-save" class="btn btn-primary">Save</button>
+        <button id="profile-cancel" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Popup (view only) -->
+  <div id="user-popup" class="modal hidden">
+    <div class="modal-inner modal-inner-dark small">
+      <div class="popup-row">
+        <div id="popup-avatar-wrap" class="avatar-wrap small">
+          <img id="popup-avatar" src="" alt="avatar" class="avatar-img hidden" />
+        </div>
+        <div style="flex:1">
+          <h4 id="popup-displayname" style="margin:0 0 .25rem 0"></h4>
+          <div id="popup-discord" class="muted" style="font-size:.9rem;margin-bottom:.25rem"></div>
+        </div>
+      </div>
+      <div style="margin-top:.75rem;margin-bottom:1.5rem">
+        <h5 style="color:var(--primary);margin:.5rem 0 .25rem;font-size:.9rem">Bio</h5>
+        <p id="popup-bio" class="muted" style="margin:.25rem 0"></p>
+      </div>
+      <div class="form-actions">
+        <button id="popup-selling" class="btn btn-primary">Selling</button>
+        <button id="popup-items-sold" class="btn btn-primary">Items Sold History</button>
+        <button id="popup-close" class="btn btn-accent">Close</button>
+      </div>
+    </div>
+  </div>
+  <!-- Confirm dialog -->
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-inner small">
+      <p id="confirm-message"></p>
+      <div class="form-actions">
+        <button id="confirm-yes" class="btn btn-accent">Yes</button>
+        <button id="confirm-no" class="btn">No</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin / Moderation Panel -->
+  <div id="admin-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 960px;">
+      <h2 id="admin-modal-title">Admin Panel</h2>
+      <p class="hint">Manage users below. Actions depend on your role.</p>
+      <div id="admin-controls" class="admin-controls">
+        <label for="admin-role-filter">Show</label>
+        <select id="admin-role-filter" class="search-select">
+          <option value="all">All Users</option>
+          <option value="normal">Normal Users</option>
+          <option value="staff">Admins & Mods</option>
+        </select>
+        <input id="admin-search" type="text" placeholder="Search users..." style="max-width:260px" />
+      </div>
+      <div id="admin-users" class="admin-users"></div>
+      <div id="admin-pagination" class="admin-pagination">
+        <button id="admin-prev" class="btn btn-small">Prev</button>
+        <span id="admin-page-label" class="hint"></span>
+        <button id="admin-next" class="btn btn-small">Next</button>
+      </div>
+      <div class="form-actions">
+        <button id="admin-close" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ban modal -->
+  <div id="ban-modal" class="modal hidden">
+    <div class="modal-inner small">
+      <h3 id="ban-title">Ban User</h3>
+      <label>Duration (minutes)
+        <input id="ban-minutes" type="number" min="1" value="60" />
+      </label>
+      <label>Reason (optional)
+        <input id="ban-reason" type="text" maxlength="120" placeholder="Reason for ban" />
+      </label>
+      <div class="form-actions">
+        <button id="ban-confirm" class="btn btn-accent">Confirm</button>
+        <button id="ban-cancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename modal -->
+  <div id="rename-modal" class="modal hidden">
+    <div class="modal-inner small">
+      <h3 id="rename-title">Rename Display Name</h3>
+      <label>New Display Name
+        <input id="rename-input" type="text" maxlength="40" placeholder="Enter new display name" />
+      </label>
+      <div class="form-actions">
+        <button id="rename-confirm" class="btn btn-primary">Confirm</button>
+        <button id="rename-cancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Items Sold History modal -->
+  <div id="items-sold-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 800px;">
+      <h2 id="items-sold-title">Items Sold History</h2>
+      <p class="hint">All items you've sold, including deleted listings.</p>
+      <div id="items-sold-list" class="items-sold-list"></div>
+      <div id="items-sold-pagination" class="admin-pagination">
+        <button id="items-sold-prev" class="btn btn-small">Prev</button>
+        <span id="items-sold-page-label" class="hint"></span>
+        <button id="items-sold-next" class="btn btn-small">Next</button>
+      </div>
+      <div class="form-actions">
+        <button id="items-sold-close" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Moderation History modal -->
+  <div id="mod-history-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 960px;">
+      <h2>Moderation History</h2>
+      <p class="hint">All moderation actions taken by staff.</p>
+      <div id="mod-history-list" class="mod-history-list"></div>
+      <div class="form-actions">
+        <button id="mod-history-close" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
