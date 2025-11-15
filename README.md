@@ -1,4 +1,4 @@
-MR Auctioner — Mirage Realms (static demo)
+MR Auctioner - Mirage Realms (static demo)
 
 This is a simple static front-end demo that simulates user accounts and an auction/listing board for the fictional MMORPG "Mirage Realms".
 
