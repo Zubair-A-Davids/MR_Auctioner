@@ -7,7 +7,7 @@ const ITEM_TYPES = [
   {
     id: 'Primitive-Sword',
     name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
+    description: 'Req Melee Lv.15. Max Stats: 3melee or 2/2',
     type: 'Sword',
     baseStats: { damage: 4, weight: 20 },
     image: 'Items/Swords/Primitive_Sword.png'
@@ -15,34 +15,18 @@ const ITEM_TYPES = [
   {
     id: 'Spiked-Sword',
     name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
+    description: 'Req Melee Lv.20. Max Stats: 6melee or 4/4',
     type: 'Sword',
     baseStats: { damage: 5, weight: 20 },
     image: 'Items/Swords/Spiked_Sword.png'
   },
   {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
+    id: 'Banisher',
+    name: 'Banisher',
+    description: 'Req Melee Lv.80. Max Stats: 24melee or 16/16',
     type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
-  },
-  {
-    id: 'Spiked-Sword',
-    name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
-    type: 'Sword',
-    baseStats: { damage: 5, weight: 20 },
-    image: 'Items/Swords/Spiked_Sword.png'
-  },
-    {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
-    type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
+    baseStats: { damage: 11, weight: 20 },
+    image: 'Items/Swords/Banisher.png'
   },
   {
     id: 'Spiked-Sword',
@@ -123,6 +107,26 @@ const ITEM_TYPES = [
     type: 'Sword',
     baseStats: { damage: 4, weight: 20 },
     image: 'Items/Swords/Primitive_Sword.png'
+  },
+
+// Armour - Ranger
+  {
+    id: 'Spiked-Armour',
+    name: 'Spiked Armour',
+    description: 'Req Lv.70. Max Stats: 24distance or 16/16',
+    type: 'Armour',
+    baseStats: { damage: 5, weight: 20 },
+    image: 'Items/Armour/Spiked_Armour.png'
+  },
+
+// Armour - Knight
+    {
+    id: 'Platinum-Armour',
+    name: 'Platinum Armour',
+    description: 'Req Lv.60. Max Stats: 21melee or 14/14',
+    type: 'Armour',
+    baseStats: { damage: 4, weight: 20 },
+    image: 'Items/Armour/Platinum_Armour.png'
   },
   {
     id: 'Spiked-Sword',
