@@ -765,6 +765,69 @@ function setup(){
     qs('#item-image').dispatchEvent(new Event('change-valid'));
   });
 
+  // Drag and drop for image upload
+  const dropZone = qs('#image-drop-zone');
+  if(dropZone){
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => {
+        dropZone.classList.add('drag-over');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => {
+        dropZone.classList.remove('drag-over');
+      });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const files = e.dataTransfer.files;
+      if(files.length > 0){
+        const file = files[0];
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if(!allowedTypes.includes(file.type)){
+          showMessage('Only JPG, PNG, GIF, and WebP images are allowed', 'error');
+          return;
+        }
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        qs('#item-image').files = dataTransfer.files;
+        qs('#item-image').dispatchEvent(new Event('change-valid'));
+      }
+    });
+  }
+
+  // Paste image from clipboard
+  document.addEventListener('paste', (e) => {
+    // Only handle paste when create listing area is visible
+    if(qs('#create-listing-area').classList.contains('hidden')) return;
+    
+    const items = e.clipboardData?.items;
+    if(!items) return;
+    
+    for(let i = 0; i < items.length; i++){
+      if(items[i].type.indexOf('image') !== -1){
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if(file){
+          const dataTransfer = new DataTransfer();
+          dataTransfer.items.add(file);
+          qs('#item-image').files = dataTransfer.files;
+          qs('#item-image').dispatchEvent(new Event('change-valid'));
+          showMessage('Image pasted from clipboard', 'info', 2000);
+          break;
+        }
+      }
+    }
+  });
+
   qs('#btn-register').addEventListener('click', ()=>{
     const u = qs('#reg-username').value.trim(); const p = qs('#reg-password').value; const d = qs('#reg-displayname').value.trim();
     if(u.length < 3) return showMessage('Username must be at least 3 characters', 'error');
