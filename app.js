@@ -314,6 +314,11 @@ function renderListings(){
     let html = `<h3>${escapeHtml(l.title)}</h3>
       <p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}">${escapeHtml(sellerDisplay)}</a></p>`;
     
+    // Show item type description if available
+    if(itemType){
+      html += `<p class="hint"><strong>Item Type:</strong> ${escapeHtml(itemType.description)}</p>`;
+    }
+    
     // Show listing-specific description if any
     if(l.desc){
       html += `<p><strong>Seller's Notes:</strong> ${escapeHtml(l.desc)}</p>`;
