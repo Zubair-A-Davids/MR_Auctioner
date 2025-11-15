@@ -6,6 +6,28 @@
   <title>Mirage Realms Auctioner</title>
   <link rel="icon" type="image/png" href="icon.png">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .item-type-image[title]:hover::after {
+      content: attr(title);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, rgba(0, 217, 255, 0.95), rgba(0, 184, 212, 0.95));
+      color: var(--primary-dark);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      white-space: normal;
+      max-width: 200px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      z-index: 1000;
+      pointer-events: none;
+      margin-bottom: 0.5rem;
+      border: 1px solid var(--primary);
+      box-shadow: 0 4px 12px rgba(0, 217, 255, 0.4);
+    }
+  </style>
 </head>
 
 <body>
@@ -148,6 +170,14 @@
 </section>
 
   </main>
+
+  <!-- Image Modal -->
+  <div id="image-modal" class="modal hidden">
+    <div class="image-modal-content">
+      <button id="close-image-modal" class="image-modal-close" aria-label="Close">&times;</button>
+      <img id="modal-image" src="" alt="Full size image" />
+    </div>
+  </div>
 
   <footer>
     <small>Mirage Realms Unofficial Experimental Auction House</small>

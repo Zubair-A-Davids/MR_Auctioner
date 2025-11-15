@@ -314,22 +314,17 @@ function renderListings(){
     let html = `<h3>${escapeHtml(l.title)}</h3>
       <p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}">${escapeHtml(sellerDisplay)}</a></p>`;
     
-    // Item type image (top right, always displayed if available)
-    if(itemType && itemType.image){
-      html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}"/>`;
-    }
-    
-    // Show item type description if available
-    if(itemType){
-      html += `<p class="hint"><strong>Item Type:</strong> ${escapeHtml(itemType.description)}</p>`;
-    }
-    
     // Show listing-specific description if any
     if(l.desc){
       html += `<p><strong>Seller's Notes:</strong> ${escapeHtml(l.desc)}</p>`;
     }
     
-    html += `<div class="price-row"><img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div>`;
+    // Price row with item type image
+    html += `<div class="price-row">`;
+    if(itemType && itemType.image){
+      html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}"/>`;
+    }
+    html += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
     
     // User-uploaded image (centered below gold amount)
     if(l.image){
@@ -874,6 +869,32 @@ function setup(){
     }
   });
 
+  // Double click on user uploaded images to open in modal
+  document.body.addEventListener('dblclick', (ev)=>{
+    if(ev.target.classList.contains('user-uploaded-image')){
+      const modal = qs('#image-modal');
+      const modalImg = qs('#modal-image');
+      modalImg.src = ev.target.src;
+      modal.classList.remove('hidden');
+      modal.classList.add('show');
+    }
+  });
+
+  // Close image modal
+  qs('#close-image-modal').addEventListener('click', ()=>{
+    const modal = qs('#image-modal');
+    modal.classList.remove('show');
+    modal.classList.add('hidden');
+  });
+
+  // Close modal on background click
+  qs('#image-modal').addEventListener('click', (ev)=>{
+    if(ev.target.id === 'image-modal'){
+      ev.target.classList.remove('show');
+      ev.target.classList.add('hidden');
+    }
+  });
+
   qs('#btn-login').addEventListener('click', ()=>{
     const u = qs('#login-username').value.trim(); const p = qs('#login-password').value;
     if(!u || !p) return showMessage('Enter username and password', 'error');
@@ -892,7 +913,6 @@ function setup(){
     if(f.size <= maxBytes){
       const d = await readFileAsDataURL(f);
       qs('#item-image-preview').src = d; qs('#item-image-preview').classList.remove('hidden');
-      showMessage('Image under limit (' + Math.round(f.size/1024) + ' KB).', 'info', 2500);
       return;
     }
     showMessage('Image is large (' + Math.round(f.size/1024) + ' KB). Resizing...', 'info', 4000);
@@ -936,7 +956,9 @@ function setup(){
     if(!res.ok) return showMessage(res.msg, 'error');
     // attach image after creation (so we can preserve createdAt and id ordering)
     if(img){ updateListing(res.listing.id, {image: img}); }
-    qs('#item-title').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').style.display='none';
+    qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden'); qs('#item-image-preview').src='';
+    qs('#selected-item-info').textContent = '';
+    selectedItemTypeId = null;
       renderListings();
       qs('#create-listing-area').classList.add('hidden');
       qs('#listings-section').classList.remove('hidden');
@@ -957,7 +979,7 @@ function setup(){
 
 function finishEditUI(){
   qs('#editing-id').value = '';
-  qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden');
+  qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden'); qs('#item-image-preview').src='';
   qs('#selected-item-info').textContent = '';
   selectedItemTypeId = null;
   qs('#btn-create-listing').textContent = 'Create listing'; qs('#btn-cancel-edit').classList.add('hidden');

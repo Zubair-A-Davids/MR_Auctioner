@@ -36,17 +36,18 @@ input:disabled,textarea:disabled{background:rgba(255,255,255,0.02);cursor:not-al
 .btn-accent:hover:not(:disabled){background:#ff8533}
 .btn-small{font-size:.9rem;padding:.35rem .5rem}
 .btn-large{font-size:1.05rem;padding:.5rem 1.2rem;font-weight:700}
-#listings{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+#listings{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .listing{background:linear-gradient(135deg,rgba(19,47,76,0.6),rgba(10,25,41,0.8));padding:.75rem;border-radius:8px;border:1px solid var(--border-color);display:flex;flex-direction:column;position:relative;transition:border-color 0.2s;min-height:400px;max-height:500px;overflow:hidden}
 .listing:hover{border-color:var(--primary)}
 .listing h3{margin:.25rem 0;color:var(--primary)}
 .listing-content{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.item-type-image{position:absolute;top:.75rem;right:.75rem;width:60px;height:60px;border-radius:6px;object-fit:contain;background:transparent;padding:4px;box-sizing:border-box}
-.user-uploaded-image{max-width:80%;height:150px;border-radius:6px;margin:0;object-fit:contain}
-.image-container{display:flex;justify-content:center;align-items:center;margin:6px 0;height:150px;min-height:150px;overflow:hidden}
+.item-type-image{width:38px;height:38px;border-radius:6px;object-fit:contain;background:transparent;padding:4px;box-sizing:border-box;cursor:help}
+.item-type-image[title]{position:relative}
+.user-uploaded-image{max-width:85%;height:180px;border-radius:6px;margin:0;object-fit:contain;cursor:pointer}
+.image-container{display:flex;justify-content:center;align-items:center;margin:6px 0;height:180px;min-height:180px;overflow:hidden}
 .listing-footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border-color)}
 .listing-time{font-size:.8rem;color:var(--primary)}
-.hint{font-size:.85rem;color:var(--text-muted)}
+.hint{font-size:.85rem;color:var(--text-muted);margin-top:.15rem}
 /* Landing section text color */
 #landing .hint{color:var(--primary)}
 .accent-text{color:var(--accent)}
@@ -58,12 +59,14 @@ input:disabled,textarea:disabled{background:rgba(255,255,255,0.02);cursor:not-al
 .hint .seller-link:hover{color:#ff3333;text-decoration:none}
 /* Seller label styling to match Seller's Notes color and slightly larger */
 .seller-line .seller-label{color:var(--text-light);font-size:.95rem}
+.listing-content p{font-size:.8rem}
 small{color:var(--text-muted)}
 .listing img{max-width:100%;height:auto;border-radius:6px;margin:6px 0}
 .controls{display:flex;gap:6px}
 .controls button{padding:.35rem .5rem;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer;font-weight:600;transition:background 0.2s,transform 0.15s}
 .controls button:hover{background:#ff8533;transform:translateY(-2px)}
-.price-row{display:flex;align-items:center;justify-content:flex-end;gap:.25rem;margin-top:.25rem}
+.price-row{display:flex;align-items:center;justify-content:space-between;gap:.25rem;margin-top:.25rem}
+.price-group{display:flex;align-items:center;gap:.25rem}
 .gold-icon{width:18px;height:18px;object-fit:contain}
 .message{max-width:900px;margin:0.75rem auto;padding:.6rem .9rem;border-radius:8px;background:rgba(0,217,255,0.1);color:var(--primary);border:1px solid var(--border-color);animation:slideIn 0.3s ease}
 .message.error{background:rgba(255,107,0,0.1);border-color:rgba(255,107,0,0.3);color:var(--accent)}
@@ -200,3 +203,10 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 .filter-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
 .filter-content{overflow:hidden;transition:max-height 0.3s ease,opacity 0.3s ease}
 .filter-content.collapsed{max-height:0;opacity:0;margin:0;padding:0}
+
+/* Image Modal */
+#image-modal{background:rgba(0,0,0,0.9)}
+.image-modal-content{position:relative;max-width:95vw;max-height:95vh;display:flex;align-items:center;justify-content:center;padding:3rem}
+.image-modal-close{position:absolute;top:0;right:0;background:var(--accent);color:white;border:none;font-size:1.5rem;width:2.5rem;height:2.5rem;border-radius:50%;cursor:pointer;z-index:1001;font-weight:700;line-height:1;transition:background 0.2s,transform 0.2s}
+.image-modal-close:hover{background:#ff8533;transform:scale(1.1)}
+#modal-image{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
