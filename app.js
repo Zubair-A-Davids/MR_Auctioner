@@ -316,7 +316,7 @@ function renderListings(){
     
     // Show item type description if available
     if(itemType){
-      html += `<p class="hint"><strong>Item Type:</strong> ${escapeHtml(itemType.description)}</p>`;
+      html += `<p class="hint"><strong>Info:</strong> ${escapeHtml(itemType.description)}</p>`;
     }
     
     // Show listing-specific description if any
@@ -1008,6 +1008,13 @@ function setup(){
       }catch(e){
         return showMessage('Image processing failed', 'error');
       }
+    }
+
+    // Add this validation check:
+    const itemDesc = document.getElementById('item-desc').value.trim();
+    if (!itemDesc) {
+      showMessage('Please add details about your listing in the "Your Listing Description" field.', 'error');
+      return;
     }
 
     if(editingId){
