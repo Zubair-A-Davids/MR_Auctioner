@@ -7,7 +7,7 @@ const ITEM_TYPES = [
   {
     id: 'Primitive-Sword',
     name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2/2',
+    description: 'Req. Melee Lv15. Max Stats: 3melee or 2/2',
     type: 'Sword',
     baseStats: { damage: 4, weight: 20 },
     image: 'Items/Swords/Primitive_Sword.png'
@@ -15,98 +15,74 @@ const ITEM_TYPES = [
   {
     id: 'Spiked-Sword',
     name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4/4',
+    description: 'Req. Melee Lv20. Max Stats: 6melee or 4/4',
     type: 'Sword',
     baseStats: { damage: 5, weight: 20 },
     image: 'Items/Swords/Spiked_Sword.png'
   },
   {
+    id: 'Knight-Sword',
+    name: 'Knight Sword',
+    description: 'Req. Melee Lv30. Max Stats: 9melee or 6/6',
+    type: 'Sword',
+    baseStats: { damage: 6, weight: 20 },
+    image: 'Items/Swords/SKnight_Sword.png'
+  },
+  {
+    id: 'Elven-Sword',
+    name: 'Elven Sword',
+    description: 'Req. Melee Lv40. Max Stats: 12melee or 8/8',
+    type: 'Sword',
+    baseStats: { damage: 7, weight: 20 },
+    image: 'Items/Swords/Elven_Sword.png'
+  },
+  {
+    id: 'Paladin-Sword',
+    name: 'Paladin Sword',
+    description: 'Req. Melee Lv50. Max Stats: 15melee or 10/10',
+    type: 'Sword',
+    baseStats: { damage: 8, weight: 20 },
+    image: 'Items/Swords/Paladin_Sword.png'
+  },
+  {
+    id: 'Talon',
+    name: 'Talon',
+    description: 'Req. Melee Lv60. Max Stats: 18melee or 12/12',
+    type: 'Sword',
+    baseStats: { damage: 9, weight: 20 },
+    image: 'Items/Swords/Talon.png'
+  },
+  {
+    id: 'Vindicator',
+    name: 'Vindicator',
+    description: 'Req. Melee Lv70. Max Stats: 21melee or 14/14',
+    type: 'Sword',
+    baseStats: { damage: 10, weight: 20 },
+    image: 'Items/Swords/Vindicator.png'
+  },
+  {
     id: 'Banisher',
     name: 'Banisher',
-    description: 'Req Melee Lv.80. Max Stats: 24melee or 16/16',
+    description: 'Req. Melee Lv80. Max Stats: 24melee or 16/16',
     type: 'Sword',
     baseStats: { damage: 11, weight: 20 },
     image: 'Items/Swords/Banisher.png'
   },
   {
-    id: 'Spiked-Sword',
-    name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
+    id: 'Midnight',
+    name: 'Midnight',
+    description: 'Req. Melee Lv90. Max Stats: 27melee or 18/18',
     type: 'Sword',
-    baseStats: { damage: 5, weight: 20 },
-    image: 'Items/Swords/Spiked_Sword.png'
-  },
-    {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
-    type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
+    baseStats: { damage: 12, weight: 20 },
+    image: 'Items/Swords/Midnight.png'
   },
   {
-    id: 'Spiked-Sword',
-    name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
+    id: 'Armageddon',
+    name: 'Armageddon',
+    description: 'Req. Melee Lv100. Max Stats: 30melee or 20/20',
     type: 'Sword',
-    baseStats: { damage: 5, weight: 20 },
-    image: 'Items/Swords/Spiked_Sword.png'
-  },
-    {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
-    type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
-  },
-  {
-    id: 'Spiked-Sword',
-    name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
-    type: 'Sword',
-    baseStats: { damage: 5, weight: 20 },
-    image: 'Items/Swords/Spiked_Sword.png'
-  },
-    {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
-    type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
-  },
-  {
-    id: 'Spiked-Sword',
-    name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
-    type: 'Sword',
-    baseStats: { damage: 5, weight: 20 },
-    image: 'Items/Swords/Spiked_Sword.png'
-  },
-    {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
-    type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
-  },
-  {
-    id: 'Spiked-Sword',
-    name: 'Spiked Sword',
-    description: 'Req Melee Lv.20. Max Stats: 6melee or 4melee/2',
-    type: 'Sword',
-    baseStats: { damage: 5, weight: 20 },
-    image: 'Items/Swords/Spiked_Sword.png'
-  },
-    {
-    id: 'Primitive-Sword',
-    name: 'Primitive Sword',
-    description: 'Req Melee Lv.15. Max Stats: 3melee or 2melee/1',
-    type: 'Sword',
-    baseStats: { damage: 4, weight: 20 },
-    image: 'Items/Swords/Primitive_Sword.png'
+    baseStats: { damage: 13, weight: 20 },
+    image: 'Items/Swords/Armageddon.png'
   },
 
 // Armour - Ranger
