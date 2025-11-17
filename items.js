@@ -179,7 +179,7 @@ const ITEM_TYPES = [
   {
     id: 'Reinforced-Shield',
     name: 'Reinforced Shield',
-    description: 'Req. Defence Lv15. Max Stats: 6defence or 2/1',
+    description: 'Req. Defence Lv15. Max Stats: 6defence or 4/1',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Reinforced_Shield.png'
@@ -187,7 +187,7 @@ const ITEM_TYPES = [
   {
     id: 'Copper-Shield',
     name: 'Copper Shield',
-    description: 'Req. Defence Lv20. Max Stats: 12defence or 4/2',
+    description: 'Req. Defence Lv20. Max Stats: 12defence or 8/2',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Copper_Shield.png'
@@ -195,7 +195,7 @@ const ITEM_TYPES = [
   {
     id: 'Plate-Shield',
     name: 'Plate Shield',
-    description: 'Req. Defence Lv30. Max Stats: 18defence or 4/2',
+    description: 'Req. Defence Lv30. Max Stats: 18defence or 12/3',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Plate_Shield.png'
@@ -203,7 +203,7 @@ const ITEM_TYPES = [
   {
     id: 'Soldier-Shield',
     name: 'Soldier Shield',
-    description: 'Req. Defence Lv40. Max Stats: 24defence or 8/4',
+    description: 'Req. Defence Lv40. Max Stats: 24defence or 16/4',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Soldier_Shield.png'
@@ -211,7 +211,7 @@ const ITEM_TYPES = [
   {
     id: 'Silver-Shield',
     name: 'Silver Shield',
-    description: 'Req. Defence Lv50. Max Stats: 30defence or 10/5',
+    description: 'Req. Defence Lv50. Max Stats: 30defence or 20/5',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Silver_Shield.png'
@@ -219,7 +219,7 @@ const ITEM_TYPES = [
   {
     id: 'Platinum-Shield',
     name: 'Platinum Shield',
-    description: 'Req. Defence Lv60. Max Stats: 36defence or 12/6',
+    description: 'Req. Defence Lv60. Max Stats: 36defence or 24/6',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Platinum_Shield.png'
@@ -227,7 +227,7 @@ const ITEM_TYPES = [
   {
     id: 'Emerald-Shield',
     name: 'Emerald Shield',
-    description: 'Req. Defence Lv70. Max Stats: 42defence or 14/7',
+    description: 'Req. Defence Lv70. Max Stats: 42defence or 28/7',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Emerald_Shield.png'
@@ -235,7 +235,7 @@ const ITEM_TYPES = [
   {
     id: 'Granite-Shield',
     name: 'Granite Shield',
-    description: 'Req. Defence Lv80. Max Stats: 48defence or 16/8',
+    description: 'Req. Defence Lv80. Max Stats: 48defence or 32/8',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Granite_Shield.png'
@@ -243,7 +243,7 @@ const ITEM_TYPES = [
   {
     id: 'Golden-Shield',
     name: 'Golden Shield',
-    description: 'Req. Defence Lv90. Max Stats: 54defence or 18/9',
+    description: 'Req. Defence Lv90. Max Stats: 54defence or 36/9',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Golden_Shield.png'
@@ -251,7 +251,7 @@ const ITEM_TYPES = [
   {
     id: 'Chaos-Shield',
     name: 'Chaos Shield',
-    description: 'Req. Defence Lv100. Max Stats: 60defence or 20/10',
+    description: 'Req. Defence Lv100. Max Stats: 60defence or 40/10',
     type: 'Shield',
     baseStats: { damage: 1, weight: 20 },
     image: 'Items/Shields/Chaos_Shield.png'
