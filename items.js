@@ -357,12 +357,12 @@ const ITEM_TYPES = [
 
 // Weapons - Tomes
   {
-    id: 'Novice-Notes',
-    name: 'Novice Notes',
+    id: 'Novice\'s-Notes',
+    name: 'Novice\'s Notes',
     description: 'Req. Magic Lv0. Max Stats: 9magic or 6/3',
     type: 'Tome',
     baseStats: { damage: 0, weight: 20 },
-    image: 'Items/Tomes/Novice_Notes.png'
+    image: 'Items/Tomes/Novice\'s_Notes.png'
   },
   {
     id: 'Old-Spellbook',
@@ -1031,12 +1031,12 @@ const ITEM_TYPES = [
     image: 'Items/Food/Candy_Cane.png'
   },
   {
-    id: 'Meat',
-    name: 'Meat',
+    id: 'Tough-Meat',
+    name: 'Tough Meat',
     description: '5 Nourishment',
     type: 'Food',
     baseStats: { damage: 0, weight: 0 },
-    image: 'Items/Food/Meat.png'
+    image: 'Items/Food/Tough_Meat.png'
   },
   {
     id: 'Turnip',
