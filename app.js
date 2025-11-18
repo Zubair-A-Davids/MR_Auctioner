@@ -203,14 +203,23 @@ async function getFilteredListings(){
       return titleMatch || sellerMatch;
     });
   }
+  
   // Filter by seller
   if(currentFilters.seller){
-    const wanted = (currentFilters.seller || '').toLowerCase();
-    listings = listings.filter(l => {
-      const prof = getUser(l.seller) || {};
-      const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
-      return disp === wanted;
-    });
+    if(API_CONFIG.USE_API) {
+      // In API mode, filter by owner_id (UUID)
+      listings = listings.filter(l => {
+        return String(l.seller).trim() === String(currentFilters.seller).trim();
+      });
+    } else {
+      // In localStorage mode, filter by email or display name
+      const wanted = (currentFilters.seller || '').toLowerCase();
+      listings = listings.filter(l => {
+        const prof = getUser(l.seller) || {};
+        const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
+        return disp === wanted || l.seller.toLowerCase() === wanted;
+      });
+    }
   }
   
   // Sort by date FIRST (to establish base order)
@@ -379,7 +388,17 @@ async function renderListings(){
             const myId = String(me.id).trim();
             const sellerId = String(l.seller).trim();
             isOwner = myId === sellerId;
-            console.log('Ownership check:', {myId, sellerId, isOwner, listing: l.title});
+            console.log('🔍 Ownership check:', {
+              listing: l.title,
+              myId: myId,
+              sellerId: sellerId,
+              match: myId === sellerId,
+              isOwner: isOwner,
+              isAdmin: isAdmin,
+              willShowControls: isOwner || isAdmin
+            });
+          } else {
+            console.warn('⚠️ Could not fetch current user info from API');
           }
         } else {
           // In localStorage mode, compare emails
