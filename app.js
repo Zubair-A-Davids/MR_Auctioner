@@ -655,8 +655,30 @@ function setup(){
   const banCancel = qs('#ban-cancel');
   if(banCancel){ banCancel.addEventListener('click', ()=>{ banTargetUser = null; hideEl(qs('#ban-modal')); }); }
   const banConfirm = qs('#ban-confirm');
-  if(banConfirm){ banConfirm.addEventListener('click', ()=>{
+  if(banConfirm){ banConfirm.addEventListener('click', async ()=>{
       if(!banTargetUser) return hideEl(qs('#ban-modal'));
+      
+      if(API_CONFIG.USE_API){
+        const minsRaw = qs('#ban-minutes').value;
+        const mins = Math.max(1, parseInt(minsRaw, 10) || 0);
+        const reason = (qs('#ban-reason').value || '').slice(0, 120);
+        const bannedUntil = new Date(Date.now() + mins*60000).toISOString();
+        
+        const result = await ApiService.updateUser(banTargetUser, { bannedUntil, bannedReason: reason });
+        if(!result.ok) {
+          banTargetUser = null;
+          hideEl(qs('#ban-modal'));
+          return showMessage(result.msg || 'Failed to ban user', 'error');
+        }
+        
+        hideEl(qs('#ban-modal'));
+        banTargetUser = null;
+        await renderAdminUsers(adminView.mode);
+        showMessage('User banned', 'info');
+        return;
+      }
+      
+      // localStorage mode
       const users = loadJSON(LS_USERS, {});
       const target = users[banTargetUser];
       const viewer = getUser(currentUser()) || {};
@@ -683,12 +705,31 @@ function setup(){
   const renameCancel = qs('#rename-cancel');
   if(renameCancel){ renameCancel.addEventListener('click', ()=>{ renameTargetUser = null; hideEl(qs('#rename-modal')); }); }
   const renameConfirm = qs('#rename-confirm');
-  if(renameConfirm){ renameConfirm.addEventListener('click', ()=>{
+  if(renameConfirm){ renameConfirm.addEventListener('click', async ()=>{
       if(!renameTargetUser) return hideEl(qs('#rename-modal'));
+      const newName = qs('#rename-input').value.trim();
+      
+      if(API_CONFIG.USE_API){
+        if(newName && newName.length > 0){
+          const result = await ApiService.updateUser(renameTargetUser, { displayName: newName.slice(0, 40) });
+          if(!result.ok) {
+            renameTargetUser = null;
+            hideEl(qs('#rename-modal'));
+            return showMessage(result.msg || 'Failed to update name', 'error');
+          }
+          await renderAdminUsers(adminView.mode);
+          await renderListings();
+          showMessage('Display name updated', 'info');
+        }
+        renameTargetUser = null;
+        hideEl(qs('#rename-modal'));
+        return;
+      }
+      
+      // localStorage mode
       const users = loadJSON(LS_USERS, {});
       const target = users[renameTargetUser];
       if(!target){ renameTargetUser = null; return hideEl(qs('#rename-modal')); }
-      const newName = qs('#rename-input').value.trim();
       if(newName && newName.length > 0){
         const oldName = target.displayName || renameTargetUser;
         target.displayName = newName.slice(0, 40);
@@ -1397,7 +1438,81 @@ async function renderAdminUsers(mode){
   if(nextBtn) nextBtn.disabled = adminView.page >= Math.ceil(total / adminView.pageSize);
 }
 
-function handleAdminAction(action, username, mode){
+async function handleAdminAction(action, username, mode){
+  if(API_CONFIG.USE_API){
+    // API-based admin actions
+    const viewer = await ApiService.getMe();
+    if(!viewer) return showMessage('Not authenticated', 'error');
+    
+    const viewerIsAdmin = !!viewer.isAdmin;
+    const viewerIsMod = !!viewer.isMod || viewerIsAdmin;
+    
+    if(action === 'delete'){
+      if(!viewerIsAdmin) return;
+      showConfirmModal(`Delete user "${username}"?`, async ()=>{
+        const result = await ApiService.deleteUser(username);
+        if(!result.ok) return showMessage(result.msg || 'Failed to delete user', 'error');
+        await renderAdminUsers(mode);
+        await renderListings();
+        showMessage('User deleted', 'info');
+      });
+      return;
+    }
+
+    if(action === 'ban'){
+      banTargetUser = username;
+      const title = qs('#ban-title'); if(title) title.textContent = 'Ban User: ' + username;
+      qs('#ban-minutes').value = '60';
+      qs('#ban-reason').value = '';
+      showFlex(qs('#ban-modal'));
+      return;
+    }
+
+    if(action === 'unban'){
+      showConfirmModal(`Unban user "${username}"?`, async ()=>{
+        const result = await ApiService.updateUser(username, { bannedUntil: null, bannedReason: '' });
+        if(!result.ok) return showMessage(result.msg || 'Failed to unban user', 'error');
+        await renderAdminUsers(mode);
+        showMessage('User unbanned', 'info');
+      });
+      return;
+    }
+
+    if(action === 'toggle-mod'){
+      if(!viewerIsAdmin) return;
+      // We need to know current mod status - fetch from users list
+      const allUsers = await ApiService.getAllUsers();
+      const target = allUsers?.find(u => u.username === username);
+      if(!target) return showMessage('User not found', 'error');
+      if(target.isAdmin) return showMessage('Admins already have all permissions', 'info');
+      
+      const newStatus = !target.isMod;
+      showConfirmModal(`${newStatus ? 'Grant' : 'Revoke'} MOD role for "${username}"?`, async ()=>{
+        const result = await ApiService.updateUser(username, { isMod: newStatus });
+        if(!result.ok) return showMessage(result.msg || 'Failed to update user', 'error');
+        await renderAdminUsers(mode);
+        showMessage(newStatus ? 'Granted MOD' : 'Revoked MOD', 'info');
+      });
+      return;
+    }
+
+    if(action === 'rename'){
+      if(!viewerIsAdmin) return;
+      const allUsers = await ApiService.getAllUsers();
+      const target = allUsers?.find(u => u.username === username);
+      if(!target) return showMessage('User not found', 'error');
+      
+      renameTargetUser = username;
+      const title = qs('#rename-title'); if(title) title.textContent = 'Rename: ' + username;
+      qs('#rename-input').value = target.displayName || username;
+      showFlex(qs('#rename-modal'));
+      return;
+    }
+    
+    return;
+  }
+  
+  // localStorage-based admin actions
   const users = loadJSON(LS_USERS, {});
   const target = users[username]; if(!target) return showMessage('User not found', 'error');
   const viewer = getUser(currentUser()) || {};

@@ -178,6 +178,37 @@ const ApiService = {
     }
   },
 
+  async deleteUser(username) {
+    if (!API_CONFIG.USE_API) {
+      return { ok: false, msg: 'API mode required' };
+    }
+
+    try {
+      await this.apiRequest(`/auth/users/${encodeURIComponent(username)}`, {
+        method: 'DELETE'
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, msg: e.message };
+    }
+  },
+
+  async updateUser(username, updates) {
+    if (!API_CONFIG.USE_API) {
+      return { ok: false, msg: 'API mode required' };
+    }
+
+    try {
+      await this.apiRequest(`/auth/users/${encodeURIComponent(username)}`, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, msg: e.message };
+    }
+  },
+
   // Items methods
   async getListings(filters = {}) {
     if (!API_CONFIG.USE_API) {

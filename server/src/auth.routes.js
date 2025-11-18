@@ -131,4 +131,88 @@ router.get('/users', requireAuth, async (req, res) => {
   }
 });
 
+// Delete user (admin only)
+router.delete('/users/:email', requireAuth, async (req, res) => {
+  try {
+    // Check if requester is admin
+    const adminCheck = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
+    if (!adminCheck.rowCount || !adminCheck.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const email = req.params.email.toLowerCase();
+    
+    // Don't allow deleting admin users
+    const targetUser = await query('SELECT is_admin FROM users WHERE email = $1', [email]);
+    if (targetUser.rowCount && targetUser.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Cannot delete admin users' });
+    }
+    
+    const result = await query('DELETE FROM users WHERE email = $1 RETURNING email', [email]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    return res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update user (admin only) - for ban, mod status, rename
+router.put('/users/:email', requireAuth, async (req, res) => {
+  try {
+    // Check if requester is admin
+    const adminCheck = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
+    if (!adminCheck.rowCount || !adminCheck.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const email = req.params.email.toLowerCase();
+    const { bannedUntil, bannedReason, isMod, displayName } = req.body;
+    
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (bannedUntil !== undefined) {
+      updates.push(`banned_until = $${paramCount++}`);
+      values.push(bannedUntil ? new Date(bannedUntil) : null);
+    }
+    if (bannedReason !== undefined) {
+      updates.push(`banned_reason = $${paramCount++}`);
+      values.push(bannedReason || null);
+    }
+    if (isMod !== undefined) {
+      updates.push(`is_mod = $${paramCount++}`);
+      values.push(isMod);
+    }
+    if (displayName !== undefined) {
+      updates.push(`display_name = $${paramCount++}`);
+      values.push(displayName);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
+    
+    values.push(email);
+    const result = await query(
+      `UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`,
+      values
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    return res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;
