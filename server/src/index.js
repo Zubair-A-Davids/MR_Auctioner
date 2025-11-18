@@ -21,6 +21,14 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 
+// Security and performance headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.removeHeader('X-Powered-By');
+  next();
+});
+
 app.get('/healthz', async (_req, res) => {
   try {
     await query('SELECT 1');
