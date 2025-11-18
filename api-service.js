@@ -261,7 +261,16 @@ const ApiService = {
         })
       });
 
-      return { ok: true, listing: { id: data.id, title, desc, price, itemTypeId, seller: currentUser(), sellerName: currentDisplayName(), createdAt: new Date().toISOString(), image: null } };
+      // Fetch current user to obtain stable ID for ownership (not email)
+      let me = null;
+      try {
+        me = await this.getMe();
+      } catch(e) {
+        console.warn('Could not fetch current user for listing ownership:', e);
+      }
+      const sellerId = me?.id ? String(me.id) : currentUser();
+      const sellerName = me?.displayName || currentDisplayName() || currentUser();
+      return { ok: true, listing: { id: data.id, title, desc, price, itemTypeId, seller: sellerId, sellerName, createdAt: new Date().toISOString(), image: null } };
     } catch (e) {
       return { ok: false, msg: e.message };
     }
