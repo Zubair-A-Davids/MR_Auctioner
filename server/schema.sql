@@ -46,6 +46,17 @@ begin
   end;
 end $$;
 
--- 3) Enforce case-insensitive uniqueness of display_name
+-- 3) Normalize duplicates by appending a short id suffix so they become unique
+with dups as (
+  select id, display_name,
+         row_number() over (partition by lower(display_name) order by created_at, id) as rn
+  from users
+)
+update users u
+set display_name = concat(u.display_name, ' #', substr(u.id::text, 1, 6))
+from dups d
+where u.id = d.id and d.rn > 1;
+
+-- 4) Enforce case-insensitive uniqueness of display_name
 create unique index if not exists idx_users_display_name_unique
   on users (lower(display_name));
