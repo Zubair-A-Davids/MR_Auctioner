@@ -59,7 +59,13 @@ router.put('/:id', requireAuth, async (req, res) => {
   try {
     const ownerCheck = await query('SELECT owner_id FROM items WHERE id = $1', [req.params.id]);
     if (!ownerCheck.rowCount) return res.status(404).json({ error: 'Not found' });
-    if (String(ownerCheck.rows[0].owner_id) !== String(req.user.id)) return res.status(403).json({ error: 'Forbidden' });
+    
+    // Allow editing if user is owner OR admin
+    const isOwner = String(ownerCheck.rows[0].owner_id) === String(req.user.id);
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+    
     await query(
       'UPDATE items SET title = COALESCE($2, title), description = COALESCE($3, description), price = COALESCE($4, price), image_url = COALESCE($5, image_url), updated_at = NOW() WHERE id = $1',
       [req.params.id, title ?? null, description ?? null, price ?? null, imageUrl ?? null]
@@ -75,7 +81,13 @@ router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const ownerCheck = await query('SELECT owner_id FROM items WHERE id = $1', [req.params.id]);
     if (!ownerCheck.rowCount) return res.status(404).json({ error: 'Not found' });
-    if (String(ownerCheck.rows[0].owner_id) !== String(req.user.id)) return res.status(403).json({ error: 'Forbidden' });
+    
+    // Allow deletion if user is owner OR admin
+    const isOwner = String(ownerCheck.rows[0].owner_id) === String(req.user.id);
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+    
     await query('DELETE FROM items WHERE id = $1', [req.params.id]);
     return res.json({ ok: true });
   } catch (e) {

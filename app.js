@@ -21,6 +21,19 @@ const hideEl = el => { if(!el) return; el.classList.add('hidden'); el.classList.
 const showFlex = el => { if(!el) return; el.style.display = 'flex'; el.classList.remove('hidden'); el.classList.add('show'); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 
+// Debounce helper to prevent rapid function calls
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
 // UX helpers
 function showMessage(msg, type='info', timeout=4000){
   const el = qs('#site-message');
@@ -180,13 +193,13 @@ async function getListings(){
 }
 
 // Search and filter functions
-function applyFilters(){
+async function applyFilters(){
   currentFilters.name = qs('#search-name').value.trim().toLowerCase();
   currentFilters.priceSort = qs('#search-price').value;
   currentFilters.sort = qs('#search-sort').value;
   // do not overwrite seller here; explicit actions set it
   updateURL();
-  renderListings();
+  await renderListings();
   updateSellerFilterChip();
 }
 
@@ -320,11 +333,9 @@ async function renderUserState(){
 }
 
 async function renderListings(){
-  console.log('🎨 renderListings called');
   const container = qs('#listings');
   container.innerHTML = '';
   const listings = await getFilteredListings();
-  console.log('📊 Listings count:', listings.length, 'Unique IDs:', new Set(listings.map(l => l.id)).size);
   if(listings.length === 0){ container.innerHTML = '<p class="hint">No listings match your filters.</p>'; return; }
   listings.forEach(l => {
     const el = document.createElement('div'); el.className='listing card';
@@ -382,15 +393,6 @@ async function renderListings(){
             const myId = String(me.id).trim();
             const sellerId = String(l.seller).trim();
             isOwner = myId === sellerId;
-            console.log('🔍 Ownership check:', {
-              listing: l.title,
-              myId: myId,
-              sellerId: sellerId,
-              match: myId === sellerId,
-              isOwner: isOwner,
-              isAdmin: isAdmin,
-              willShowControls: isOwner || isAdmin
-            });
           } else {
             console.warn('⚠️ Could not fetch current user info from API');
           }
@@ -860,8 +862,9 @@ function setup(){
   const clearChip = qs('#clear-seller-filter');
   if(clearChip){ clearChip.addEventListener('click', ()=>{ currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
 
-  // Search and filter event listeners
-  qs('#search-name').addEventListener('input', applyFilters);
+  // Search and filter event listeners with debouncing for text input
+  const debouncedApplyFilters = debounce(applyFilters, 300);
+  qs('#search-name').addEventListener('input', debouncedApplyFilters);
   qs('#search-price').addEventListener('change', applyFilters);
   qs('#search-sort').addEventListener('change', applyFilters);
   qs('#search-reset').addEventListener('click', resetFilters);
