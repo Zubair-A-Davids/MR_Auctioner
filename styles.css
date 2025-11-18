@@ -167,6 +167,7 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 #profile-modal .btn, #user-popup .btn{margin-left:0}
 #profile-avatar-preview, #popup-avatar{display:block}
 #profile-avatar-preview[hidden], #popup-avatar[hidden]{display:none}
+#profile-bio{background:rgba(255,255,255,0.08)}
 
 /* modal system */
 .modal { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:9999; display:flex; align-items:center; justify-content:center; }

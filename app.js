@@ -372,12 +372,13 @@ async function renderListings(){
       html += `<p><strong>Seller's Notes:</strong> ${escapeHtml(l.desc)}</p>`;
     }
     
-    // Price row with item type image
+    // Price row with item type image next to gold amount
     html += `<div class="price-row">`;
+    html += `<div class="price-group">`;
     if(itemType && itemType.image){
       html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}"/>`;
     }
-    html += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
+    html += `<img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
     
     // User-uploaded image (centered below gold amount)
     if(l.image){
