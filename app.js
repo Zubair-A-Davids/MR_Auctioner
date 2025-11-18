@@ -276,6 +276,14 @@ async function renderUserState(){
   const btnItemsSold = qs('#btn-items-sold');
   const navbarAvatarWrap = qs('#navbar-avatar-wrap');
   const navbarAvatar = qs('#navbar-avatar');
+  
+  // Always show stats section
+  const statsSection = qs('#site-stats');
+  if(statsSection) {
+    statsSection.classList.remove('hidden');
+    await renderSiteStats();
+  }
+  
   if(u){
     greeting.textContent = `Signed in: ${currentDisplayName()}`;
     btnLogout.classList.remove('hidden');
@@ -328,6 +336,22 @@ async function renderUserState(){
     qs('#create-listing-area').classList.add('hidden');
     qs('#landing').classList.remove('hidden');
     qs('#listings-section').classList.remove('hidden');
+  }
+}
+
+async function renderSiteStats() {
+  try {
+    const stats = await ApiService.getStats();
+    
+    const usersEl = qs('#stat-users');
+    const listingsEl = qs('#stat-listings');
+    const soldEl = qs('#stat-sold');
+    
+    if(usersEl) usersEl.textContent = stats.totalUsers || 0;
+    if(listingsEl) listingsEl.textContent = stats.activeListings || 0;
+    if(soldEl) soldEl.textContent = stats.itemsSold || 0;
+  } catch(e) {
+    console.error('Failed to render stats:', e);
   }
 }
 
@@ -462,7 +486,9 @@ async function renderListings(){
 
 async function deleteListing(id){
   if (API_CONFIG.USE_API) {
-    return await ApiService.deleteListing(id);
+    const result = await ApiService.deleteListing(id);
+    await renderSiteStats(); // Update stats after deletion
+    return result;
   }
   const listings = getListings();
   const idx = listings.findIndex(x=>x.id===id);
@@ -478,6 +504,7 @@ async function deleteListing(id){
   }
   listings.splice(idx,1);
   saveJSON(LS_LISTINGS, listings);
+  await renderSiteStats(); // Update stats after deletion
   return true;
 }
 
@@ -890,6 +917,16 @@ function setup(){
     toggleFilters.addEventListener('click', ()=>{
       filterContent.classList.toggle('collapsed');
       toggleFilters.textContent = filterContent.classList.contains('collapsed') ? '+' : '−';
+    });
+  }
+
+  // Stats toggle
+  const toggleStats = qs('#toggle-stats');
+  const statsContent = qs('#stats-content');
+  if(toggleStats && statsContent){
+    toggleStats.addEventListener('click', ()=>{
+      statsContent.classList.toggle('collapsed');
+      toggleStats.textContent = statsContent.classList.contains('collapsed') ? '+' : '−';
     });
   }
 

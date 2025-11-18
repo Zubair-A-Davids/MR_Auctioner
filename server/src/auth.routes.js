@@ -239,4 +239,22 @@ router.put('/users/:email', requireAuth, async (req, res) => {
   }
 });
 
+// Get site statistics (public endpoint)
+router.get('/stats', async (req, res) => {
+  try {
+    const userCount = await query('SELECT COUNT(*) as count FROM users');
+    const listingCount = await query('SELECT COUNT(*) as count FROM items');
+    const soldCount = await query('SELECT COUNT(*) as count FROM items_sold');
+    
+    return res.json({
+      totalUsers: parseInt(userCount.rows[0].count),
+      activeListings: parseInt(listingCount.rows[0].count),
+      itemsSold: parseInt(soldCount.rows[0].count)
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

@@ -233,3 +233,11 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 .listings-loader{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 1rem;min-height:300px}
 .loader-spinner{width:50px;height:50px;border:4px solid rgba(0,217,255,0.1);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite}
 .listings-loader p{color:var(--primary);margin-top:1rem;font-size:1rem;font-weight:600}
+
+/* Site Statistics */
+.stats-card{background:linear-gradient(135deg,rgba(19,47,76,0.6),rgba(10,25,41,0.7));border:1px solid rgba(0,217,255,0.4);box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem}
+.stat-item{text-align:center;padding:0.5rem}
+.stat-value{font-size:2rem;font-weight:700;color:var(--primary);margin-bottom:0.25rem}
+.stat-label{font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
+@media (max-width:600px){.stats-grid{grid-template-columns:1fr;gap:1rem}}

@@ -316,6 +316,35 @@ const ApiService = {
       console.error('Failed to delete listing:', e);
       return false;
     }
+  },
+
+  // Get site statistics
+  async getStats() {
+    if (!API_CONFIG.USE_API) {
+      // Fallback to localStorage
+      const users = loadJSON(LS_USERS, {});
+      const listings = loadJSON(LS_LISTINGS, []);
+      const itemsSold = loadJSON(LS_ITEMS_SOLD, {});
+      
+      let soldCount = 0;
+      Object.values(itemsSold).forEach(userItems => {
+        soldCount += userItems.length;
+      });
+      
+      return {
+        totalUsers: Object.keys(users).length,
+        activeListings: listings.length,
+        itemsSold: soldCount
+      };
+    }
+
+    try {
+      const data = await this.apiRequest('/auth/stats');
+      return data;
+    } catch (e) {
+      console.error('Failed to get stats:', e);
+      return { totalUsers: 0, activeListings: 0, itemsSold: 0 };
+    }
   }
 };
 

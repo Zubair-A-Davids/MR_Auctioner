@@ -79,7 +79,7 @@ router.put('/:id', requireAuth, async (req, res) => {
 
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const ownerCheck = await query('SELECT owner_id FROM items WHERE id = $1', [req.params.id]);
+    const ownerCheck = await query('SELECT owner_id, title, description, price, item_type_id, created_at FROM items WHERE id = $1', [req.params.id]);
     if (!ownerCheck.rowCount) return res.status(404).json({ error: 'Not found' });
     
     // Allow deletion if user is owner OR admin
@@ -87,6 +87,14 @@ router.delete('/:id', requireAuth, async (req, res) => {
     const isAdmin = req.user.isAdmin === true;
     
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+    
+    const item = ownerCheck.rows[0];
+    
+    // Record item in items_sold table before deleting
+    await query(
+      'INSERT INTO items_sold (original_item_id, owner_id, title, description, price, item_type_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [req.params.id, item.owner_id, item.title, item.description, item.price, item.item_type_id, item.created_at]
+    );
     
     await query('DELETE FROM items WHERE id = $1', [req.params.id]);
     return res.json({ ok: true });
