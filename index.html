@@ -156,7 +156,10 @@
         <div class="search-grid">
           <div class="search-field">
             <label>Search by Name</label>
-            <input id="search-name" type="text" placeholder="Filter by Item or User name..." />
+            <div style="display: flex; gap: 0.5rem;">
+              <input id="search-name" type="text" placeholder="Filter by Item or User name..." style="flex: 1;" />
+              <button id="search-button" class="btn btn-primary" style="min-width: 100px;">Search</button>
+            </div>
           </div>
           <div class="search-field">
             <label>Sort by Price</label>

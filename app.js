@@ -180,13 +180,17 @@ async function getListings(){
 }
 
 // Search and filter functions
-function applyFilters(){
+let isRendering = false;
+
+async function applyFilters(){
+  // Update filter values
   currentFilters.name = qs('#search-name').value.trim().toLowerCase();
   currentFilters.priceSort = qs('#search-price').value;
   currentFilters.sort = qs('#search-sort').value;
-  // do not overwrite seller here; explicit actions set it
+  
+  // Apply filters immediately
   updateURL();
-  renderListings();
+  await renderListings();
   updateSellerFilterChip();
 }
 
@@ -328,11 +332,25 @@ async function renderUserState(){
 }
 
 async function renderListings(){
-  const container = qs('#listings');
-  container.innerHTML = '';
-  const listings = await getFilteredListings();
-  if(listings.length === 0){ container.innerHTML = '<p class="hint">No listings match your filters.</p>'; return; }
-  listings.forEach(l => {
+  // Prevent concurrent rendering
+  if(isRendering) {
+    console.warn('⚠️ Render already in progress, skipping...');
+    return;
+  }
+  
+  isRendering = true;
+  
+  try {
+    const container = qs('#listings');
+    container.innerHTML = '';
+    const listings = await getFilteredListings();
+    
+    if(listings.length === 0){ 
+      container.innerHTML = '<p class="hint">No listings match your filters.</p>'; 
+      return; 
+    }
+    
+    listings.forEach(l => {
     const el = document.createElement('div'); el.className='listing card';
     const fullDate = new Date(l.createdAt).toLocaleString();
     const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
@@ -423,6 +441,9 @@ async function renderListings(){
     el.appendChild(footerDiv);
     container.appendChild(el);
   });
+  } finally {
+    isRendering = false;
+  }
 }
 
 async function deleteListing(id){
@@ -866,7 +887,10 @@ function setup(){
   if(clearChip){ clearChip.addEventListener('click', ()=>{ currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
 
   // Search and filter event listeners
-  qs('#search-name').addEventListener('input', applyFilters);
+  qs('#search-button').addEventListener('click', applyFilters);
+  qs('#search-name').addEventListener('keypress', (e) => {
+    if(e.key === 'Enter') applyFilters();
+  });
   qs('#search-price').addEventListener('change', applyFilters);
   qs('#search-sort').addEventListener('change', applyFilters);
   qs('#search-reset').addEventListener('click', resetFilters);

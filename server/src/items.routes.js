@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   const { q, ownerId } = req.query;
-  let sql = 'SELECT i.id, i.title, i.description, i.price, i.image_url, i.created_at, u.display_name as owner_name FROM items i JOIN users u ON u.id = i.owner_id';
+  let sql = 'SELECT i.id, i.title, i.description, i.price, i.image_url, i.created_at, i.owner_id, u.display_name as owner_name FROM items i JOIN users u ON u.id = i.owner_id';
   const params = [];
   const clauses = [];
   if (q) {
@@ -62,7 +62,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     
     // Allow editing if user is owner OR admin
     const isOwner = String(ownerCheck.rows[0].owner_id) === String(req.user.id);
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.isAdmin === true;
     
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
     
@@ -84,7 +84,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
     
     // Allow deletion if user is owner OR admin
     const isOwner = String(ownerCheck.rows[0].owner_id) === String(req.user.id);
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.isAdmin === true;
     
     if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
     
