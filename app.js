@@ -374,7 +374,13 @@ async function renderListings(){
         if(API_CONFIG.USE_API) {
           // In API mode, compare user IDs
           const me = await ApiService.getMe();
-          isOwner = me && String(me.id) === String(l.seller);
+          if(me) {
+            // Ensure both are strings and trim any whitespace
+            const myId = String(me.id).trim();
+            const sellerId = String(l.seller).trim();
+            isOwner = myId === sellerId;
+            console.log('Ownership check:', {myId, sellerId, isOwner, listing: l.title});
+          }
         } else {
           // In localStorage mode, compare emails
           isOwner = currentUser() === l.seller;
@@ -1089,9 +1095,9 @@ function setup(){
   });
 
   // delegate clicks on seller links
-  document.body.addEventListener('click', (ev)=>{
+  document.body.addEventListener('click', async (ev)=>{
     const a = ev.target.closest && ev.target.closest('.seller-link');
-    if(a){ ev.preventDefault(); const uname = a.getAttribute('data-user'); openUserPopup(uname); }
+    if(a){ ev.preventDefault(); const uname = a.getAttribute('data-user'); await openUserPopup(uname); }
     
     // Copy discord name when clicked
     if(ev.target.id === 'popup-discord'){
@@ -1260,9 +1266,35 @@ async function openProfileModal(){
   showFlex(qs('#profile-modal'));
 }
 
-function openUserPopup(username){
-  const u = getUser(username);
-  if(!u) return showMessage('User not found', 'error');
+async function openUserPopup(username){
+  let u;
+  
+  if(API_CONFIG.USE_API) {
+    // In API mode, username might be a UUID, try to fetch user info
+    try {
+      const users = await ApiService.getAllUsers();
+      // Try to find by ID first (UUID), then by email
+      u = users.find(user => String(user.id) === String(username) || user.email === username);
+      if(!u) return showMessage('User not found', 'error');
+      // Normalize to expected format
+      u = {
+        displayName: u.displayName,
+        discord: u.discord || '',
+        bio: u.bio || '',
+        avatar: u.avatar || '',
+        email: u.email,
+        id: u.id
+      };
+      username = u.email; // Use email for compatibility
+    } catch(e) {
+      console.error('Failed to fetch user:', e);
+      return showMessage('User not found', 'error');
+    }
+  } else {
+    u = getUser(username);
+    if(!u) return showMessage('User not found', 'error');
+  }
+  
   qs('#popup-displayname').textContent = u.displayName || username;
   const popupDiscordEl = qs('#popup-discord');
   if(u.discord) {
@@ -1284,7 +1316,7 @@ function openUserPopup(username){
   }
   const sellBtn = qs('#popup-selling');
   if(sellBtn){
-    sellBtn.dataset.username = username;
+    sellBtn.dataset.username = API_CONFIG.USE_API && u.id ? u.id : username;
     sellBtn.dataset.displayname = u.displayName || username;
   }
   const itemsSoldBtn = qs('#popup-items-sold');
@@ -1730,4 +1762,18 @@ function showConfirmModal(message, onConfirm){
 }
 
 // On load
-window.addEventListener('DOMContentLoaded', setup);
+window.addEventListener('DOMContentLoaded', async () => {
+  setup();
+  
+  // Hide loading screen after everything is set up
+  setTimeout(() => {
+    const loadingScreen = document.getElementById('loading-screen');
+    if(loadingScreen) {
+      loadingScreen.style.opacity = '0';
+      loadingScreen.style.transition = 'opacity 0.3s ease-out';
+      setTimeout(() => {
+        loadingScreen.remove();
+      }, 300);
+    }
+  }, 500); // Small delay to ensure everything is ready
+});

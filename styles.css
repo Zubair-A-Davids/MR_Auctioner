@@ -153,7 +153,7 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 #profile-avatar-preview[hidden], #popup-avatar[hidden]{display:none}
 
 /* modal system */
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:2000;align-items:center;justify-content:center}
 .modal.show{display:flex}
 .modal-inner{background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:1rem;max-width:90vw}
 .modal-inner.dark,.modal-inner-dark{background:linear-gradient(135deg,rgba(19,47,76,0.85),rgba(10,25,41,0.9))}

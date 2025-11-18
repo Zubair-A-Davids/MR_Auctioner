@@ -31,6 +31,23 @@
 </head>
 
 <body>
+  <!-- Loading Screen -->
+  <div id="loading-screen" style="position: fixed; inset: 0; background: linear-gradient(135deg, #0a1929, #132f4c); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;">
+    <img src="icon.png" alt="MR Auctioner" style="width: 100px; height: 100px; margin-bottom: 1.5rem; animation: pulse 2s ease-in-out infinite;">
+    <div style="color: var(--primary); font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem;">MR Auctioner</div>
+    <div class="loading-spinner" style="width: 50px; height: 50px; border: 4px solid rgba(0, 217, 255, 0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+    <div style="color: rgba(255, 255, 255, 0.6); margin-top: 1rem; font-size: 0.9rem;">Loading...</div>
+  </div>
+  <style>
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+  </style>
+  
   <header class="site-header">
     <h1 class="site-title"><img src="icon.png" alt="" class="site-logo"> MR Auctioner</h1>
     <nav>
