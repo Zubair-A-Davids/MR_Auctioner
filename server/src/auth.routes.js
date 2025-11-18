@@ -46,7 +46,10 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', requireAuth, async (req, res) => {
   try {
-    const ures = await query('SELECT id, email, display_name, discord, bio, avatar, is_admin, is_mod FROM users WHERE id = $1', [req.user.id]);
+    // Update last_seen timestamp
+    await query('UPDATE users SET last_seen = NOW() WHERE id = $1', [req.user.id]);
+    
+    const ures = await query('SELECT id, email, display_name, discord, bio, avatar, is_admin, is_mod, last_seen FROM users WHERE id = $1', [req.user.id]);
     if (!ures.rowCount) return res.status(404).json({ error: 'Not found' });
     const user = ures.rows[0];
     return res.json({ 
@@ -57,7 +60,8 @@ router.get('/me', requireAuth, async (req, res) => {
       bio: user.bio,
       avatar: user.avatar,
       isAdmin: user.is_admin,
-      isMod: user.is_mod
+      isMod: user.is_mod,
+      lastSeen: user.last_seen
     });
   } catch (e) {
     console.error(e);
@@ -68,7 +72,7 @@ router.get('/me', requireAuth, async (req, res) => {
 // Get public user profile by ID (no auth required)
 router.get('/users/:userId/profile', async (req, res) => {
   try {
-    const ures = await query('SELECT id, display_name, discord, bio, avatar FROM users WHERE id = $1', [req.params.userId]);
+    const ures = await query('SELECT id, display_name, discord, bio, avatar, last_seen FROM users WHERE id = $1', [req.params.userId]);
     if (!ures.rowCount) return res.status(404).json({ error: 'User not found' });
     const user = ures.rows[0];
     return res.json({ 
@@ -76,7 +80,8 @@ router.get('/users/:userId/profile', async (req, res) => {
       displayName: user.display_name,
       discord: user.discord,
       bio: user.bio,
-      avatar: user.avatar
+      avatar: user.avatar,
+      lastSeen: user.last_seen
     });
   } catch (e) {
     console.error(e);

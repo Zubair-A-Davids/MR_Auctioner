@@ -190,6 +190,12 @@
     </div>
 
   <div id="listings"></div>
+  
+  <!-- Listings Loading Indicator -->
+  <div id="listings-loader" class="listings-loader hidden">
+    <div class="loader-spinner"></div>
+    <p>Loading listings...</p>
+  </div>
 </section>
 
   </main>
@@ -272,6 +278,7 @@
         <div style="flex:1">
           <h4 id="popup-displayname" style="margin:0 0 .25rem 0"></h4>
           <div id="popup-discord" class="muted" style="font-size:.9rem;margin-bottom:.25rem"></div>
+          <div id="popup-last-seen" class="muted" style="font-size:.85rem;color:var(--primary);display:none;"></div>
         </div>
       </div>
       <div style="margin-top:.75rem;margin-bottom:1.5rem">

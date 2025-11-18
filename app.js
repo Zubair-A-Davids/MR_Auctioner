@@ -340,10 +340,17 @@ async function renderListings(){
   
   isRendering = true;
   
+  // Show loading indicator
+  const loader = qs('#listings-loader');
+  const container = qs('#listings');
+  if(loader) loader.classList.remove('hidden');
+  if(container) container.innerHTML = '';
+  
   try {
-    const container = qs('#listings');
-    container.innerHTML = '';
     const listings = await getFilteredListings();
+    
+    // Hide loading indicator
+    if(loader) loader.classList.add('hidden');
     
     if(listings.length === 0){ 
       container.innerHTML = '<p class="hint">No listings match your filters.</p>'; 
@@ -369,7 +376,7 @@ async function renderListings(){
     
     // Show listing-specific description if any
     if(l.desc){
-      html += `<p><strong>Seller's Notes:</strong> ${escapeHtml(l.desc)}</p>`;
+      html += `<p><strong>Seller's Notes:</strong> ${colorizeStats(escapeHtml(l.desc))}</p>`;
     }
     
     // Price row with item type image next to gold amount
@@ -442,6 +449,12 @@ async function renderListings(){
     el.appendChild(footerDiv);
     container.appendChild(el);
   });
+  } catch(error) {
+    console.error('Error rendering listings:', error);
+    const loader = qs('#listings-loader');
+    if(loader) loader.classList.add('hidden');
+    const container = qs('#listings');
+    if(container) container.innerHTML = '<p class="hint" style="color:var(--accent)">Failed to load listings. Please try again.</p>';
   } finally {
     isRendering = false;
   }
@@ -583,6 +596,31 @@ function startEditListing(id){
 }
 
 function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Parse and colorize stats in seller notes
+function colorizeStats(text) {
+  if(!text) return '';
+  
+  // Define stat colors matching the game's color scheme
+  const statColors = {
+    'melee': '#00cccc',      // Cyan (30 Melee color)
+    'distance': '#ff66cc',   // Pink/Magenta (18 Distance color)
+    'magic': '#ff9933',      // Orange (21 Magic color)
+    'stamina': '#66ff66',    // Light Green (10 Stamina color)
+    'spirit': '#66ccff',     // Light Blue (10 Spirit color)
+    'defence': '#cccccc',    // Light Gray (14 Defence color)
+    'defense': '#cccccc'     // Light Gray (alternate spelling)
+  };
+  
+  // Replace pattern #<number><stat> with colored version
+  // Match #followed by digits followed by stat word (case insensitive)
+  const pattern = /#(\d+)(melee|distance|magic|stamina|spirit|defence|defense)/gi;
+  
+  return text.replace(pattern, (match, number, stat) => {
+    const color = statColors[stat.toLowerCase()] || '#ffffff';
+    return `<span style="color: ${color}; font-weight: 700;">${number}${stat}</span>`;
+  });
+}
 
 // Item type selector
 let selectedItemTypeId = null;
@@ -1351,6 +1389,17 @@ async function openUserPopup(username){
   }
   
   qs('#popup-displayname').textContent = u.displayName || username;
+  
+  // Show last seen if available
+  const lastSeenEl = qs('#popup-last-seen');
+  if(lastSeenEl && u.lastSeen) {
+    const lastSeenText = timeAgo(u.lastSeen);
+    lastSeenEl.textContent = `Last seen: ${lastSeenText}`;
+    lastSeenEl.style.display = 'block';
+  } else if(lastSeenEl) {
+    lastSeenEl.style.display = 'none';
+  }
+  
   const popupDiscordEl = qs('#popup-discord');
   if(u.discord) {
     popupDiscordEl.textContent = '@' + u.discord;

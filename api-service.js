@@ -243,7 +243,7 @@ const ApiService = {
         title: item.title,
         desc: item.description,
         price: item.price,
-        itemTypeId: null, // Not stored in API yet
+        itemTypeId: item.item_type_id || null,
         seller: item.owner_id,
         sellerName: item.owner_name,
         createdAt: item.created_at,
@@ -271,6 +271,7 @@ const ApiService = {
           title,
           description: desc,
           price: Number(price) || 0,
+          itemTypeId: itemTypeId,
           imageUrl: null // Will be updated separately if needed
         })
       });
@@ -293,6 +294,7 @@ const ApiService = {
           title: updates.title,
           description: updates.desc,
           price: updates.price,
+          itemTypeId: updates.itemTypeId,
           imageUrl: updates.image
         })
       });
