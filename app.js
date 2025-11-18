@@ -650,6 +650,21 @@ function setup(){
   ensureAdmin();
   // Ensure any modals are hidden on startup (defensive)
   ['#profile-modal','#user-popup','#item-type-modal','#confirm-modal','#change-password-modal'].forEach(id => hideEl(qs(id)));
+  
+  // MR Auctioner title click to return to Active Listings
+  const siteTitle = qs('#site-title-link');
+  if(siteTitle) {
+    siteTitle.addEventListener('click', () => {
+      qs('#create-listing-area').classList.add('hidden');
+      qs('#listings-section').classList.remove('hidden');
+      currentFilters.seller = '';
+      currentFilters.sellerLabel = '';
+      updateURL();
+      updateSellerFilterChip();
+      renderListings();
+    });
+  }
+  
   // show/hide forms
   qs('#btn-show-register').addEventListener('click', ()=>{ qs('#register-card').classList.remove('hidden'); qs('#login-card').classList.add('hidden'); });
   qs('#btn-show-login').addEventListener('click', ()=>{ qs('#login-card').classList.remove('hidden'); qs('#register-card').classList.add('hidden'); });
@@ -878,7 +893,7 @@ function setup(){
       
       updateURL(); 
       updateSellerFilterChip(); 
-      renderListings(); 
+      await renderListings(); 
     }); 
   }
   
@@ -1116,16 +1131,27 @@ function setup(){
   qs('#popup-close').addEventListener('click', ()=> hideEl(qs('#user-popup')));
 
   // Seller "Selling" button
-  qs('#popup-selling').addEventListener('click', ()=>{
+  qs('#popup-selling').addEventListener('click', async ()=>{
     const btn = qs('#popup-selling');
+    const userId = btn && btn.dataset && btn.dataset.username ? btn.dataset.username : '';
     const dname = btn && btn.dataset && btn.dataset.displayname ? btn.dataset.displayname : '';
-    currentFilters.seller = (dname || '').toLowerCase();
-    currentFilters.sellerLabel = dname || '';
+    
+    if(API_CONFIG.USE_API) {
+      // In API mode, filter by user ID
+      currentFilters.seller = userId;
+      currentFilters.sellerLabel = dname || 'User';
+    } else {
+      // In localStorage mode, filter by email/display name
+      currentFilters.seller = (dname || '').toLowerCase();
+      currentFilters.sellerLabel = dname || '';
+    }
+    
     hideEl(qs('#user-popup'));
+    qs('#create-listing-area').classList.add('hidden');
     qs('#listings-section').classList.remove('hidden');
     updateURL();
-    renderListings();
     updateSellerFilterChip();
+    await renderListings();
   });
 
   // Popup "Items Sold History" button
@@ -1704,11 +1730,17 @@ async function handleAdminAction(action, username, mode){
 
 // Items Sold History
 function openItemsSoldHistory(){
+  if(API_CONFIG.USE_API) {
+    return showMessage('Items Sold History is not yet available in API mode', 'info');
+  }
   const u = currentUser(); if(!u) return;
   openItemsSoldHistoryForUser(u);
 }
 
 function openItemsSoldHistoryForUser(username){
+  if(API_CONFIG.USE_API) {
+    return showMessage('Items Sold History is not yet available in API mode', 'info');
+  }
   const history = loadJSON(LS_ITEMS_SOLD, {});
   const userHistory = history[username] || [];
   itemsSoldView.page = 1;

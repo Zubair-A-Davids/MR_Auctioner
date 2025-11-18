@@ -49,7 +49,7 @@
   </style>
   
   <header class="site-header">
-    <h1 class="site-title"><img src="icon.png" alt="" class="site-logo"> MR Auctioner</h1>
+    <h1 class="site-title" style="cursor: pointer;" id="site-title-link"><img src="icon.png" alt="" class="site-logo"> MR Auctioner</h1>
     <nav>
       <div class="nav-user-section">
         <div id="navbar-avatar-wrap" class="navbar-avatar-wrap hidden">
@@ -91,7 +91,7 @@
           <button id="btn-register" class="btn btn-primary">Create account</button>
           <button id="btn-cancel-register" class="btn">Cancel</button>
         </div>
-        <p class="hint">Accounts are stored locally in your browser (localStorage).
+        <p class="hint">Do not use your in-game Logins. Username is for Logging in, Display Name is what others will see.
         </p>
       </div>
 
@@ -129,7 +129,9 @@
       </div>
 
       <p class="hint" id="selected-item-info"></p>
-      <img id="item-image-preview" alt="preview" class="hidden preview-image" />
+      <div id="image-preview-container" style="max-width: 100%; overflow: hidden;">
+        <img id="item-image-preview" alt="preview" class="hidden" />
+      </div>
       <input type="hidden" id="editing-id" />
       <div class="form-actions">
         <button id="btn-create-listing" class="btn btn-primary">Create listing</button>
@@ -142,7 +144,7 @@
   <h2>Welcome to Mirage Realms Auctioner</h2>
   <p class="hint">A small Auction House fan site for Mirage Realms, register and login to sell items.</p>
   <p class="hint">NOTE: All Mirage Realms Rules apply to this site. Read the <a href="https://miragerealms.co.uk/support/knowledgebase.php?article=5" target="_blank" rel="noopener noreferrer" class="accent-text">Mirage Realms Rules</a></p>
-  <p class="hint"><span class="accent-text">Browse active listings below.</span> Enjoy your stay and message <a href="#" class="seller-link" data-user="Fukarizoh">@Fukarizoh</a> on Discord for any bugs or issues :D</p>
+  <p class="hint"><span class="accent-text">Browse active listings below.</span> Enjoy your stay and message <a href="#" class="seller-link" data-user="Exteria">@Fukarizoh</a> on Discord for any bugs or issues :D</p>
 </section>
 
 <section id="listings-section" class="hidden">

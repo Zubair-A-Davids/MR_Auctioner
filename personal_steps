@@ -1,0 +1,11 @@
+Now run these commands:
+
+1. Delete the test account:
+
+cd server
+node scripts/delete-user.js admin@example.com
+
+2. Create your real admin account (use YOUR email and password):
+node scripts/create-admin.js YOUR_EMAIL@gmail.com YOUR_STRONG_PASSWORD "Your Display Name"
+
+The test account credentials aren't a security issue since they're only in your local database, but it's good practice to remove test accounts

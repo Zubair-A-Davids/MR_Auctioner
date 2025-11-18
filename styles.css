@@ -87,6 +87,22 @@ small{color:var(--text-muted)}
 .hamburger-wrap button:hover{transform:scale(1.1)}
 .hidden{display:none !important}
 
+#item-image-preview {
+  max-width: 100%;
+  max-height: 400px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 1rem auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 217, 255, 0.2);
+}
+
+#item-image-preview.hidden {
+  display: none !important;
+}
+
 /* Enhanced navbar styles */
 nav{display:flex;align-items:center;gap:.75rem}
 .nav-user-section{display:flex;align-items:center;gap:.5rem}
@@ -153,7 +169,7 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 #profile-avatar-preview[hidden], #popup-avatar[hidden]{display:none}
 
 /* modal system */
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:2000;align-items:center;justify-content:center}
+.modal { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:9999; display:flex; align-items:center; justify-content:center; }
 .modal.show{display:flex}
 .modal-inner{background:var(--bg-card);border:1px solid var(--border-color);border-radius:8px;padding:1rem;max-width:90vw}
 .modal-inner.dark,.modal-inner-dark{background:linear-gradient(135deg,rgba(19,47,76,0.85),rgba(10,25,41,0.9))}
