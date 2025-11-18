@@ -360,7 +360,7 @@ async function renderListings(){
     const sellerProfile = getUser(l.seller) || {};
     const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
     let html = `<h3>${escapeHtml(l.title)}</h3>
-      <p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}">${escapeHtml(sellerDisplay)}</a></p>`;
+      <p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
     
     // Show item type description if available
     if(itemType){
@@ -1313,25 +1313,10 @@ async function openUserPopup(username){
   let u;
   
   if(API_CONFIG.USE_API) {
-    // In API mode, username might be a UUID, try to fetch user info
-    try {
-      const users = await ApiService.getAllUsers();
-      // Try to find by ID first (UUID), then by email
-      u = users.find(user => String(user.id) === String(username) || user.email === username);
-      if(!u) return showMessage('User not found', 'error');
-      // Normalize to expected format
-      u = {
-        displayName: u.displayName,
-        discord: u.discord || '',
-        bio: u.bio || '',
-        avatar: u.avatar || '',
-        email: u.email,
-        id: u.id
-      };
-      username = u.email; // Use email for compatibility
-    } catch(e) {
-      console.error('Failed to fetch user:', e);
-      return showMessage('User not found', 'error');
+    // Fetch user profile from API
+    u = await ApiService.getUserProfile(username);
+    if(!u) {
+      return showMessage('User profile not available', 'error');
     }
   } else {
     u = getUser(username);

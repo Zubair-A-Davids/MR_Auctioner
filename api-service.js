@@ -109,6 +109,20 @@ const ApiService = {
     }
   },
 
+  async getUserProfile(userId) {
+    if (!API_CONFIG.USE_API) {
+      return getUser(userId);
+    }
+
+    try {
+      const data = await this.apiRequest(`/auth/users/${userId}/profile`);
+      return data;
+    } catch (e) {
+      console.error('Failed to get user profile:', e);
+      return null;
+    }
+  },
+
   async updateProfile(displayName, discord, bio, avatar) {
     if (!API_CONFIG.USE_API) {
       // Fallback to localStorage

@@ -65,6 +65,25 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+// Get public user profile by ID (no auth required)
+router.get('/users/:userId/profile', async (req, res) => {
+  try {
+    const ures = await query('SELECT id, display_name, discord, bio, avatar FROM users WHERE id = $1', [req.params.userId]);
+    if (!ures.rowCount) return res.status(404).json({ error: 'User not found' });
+    const user = ures.rows[0];
+    return res.json({ 
+      id: user.id,
+      displayName: user.display_name,
+      discord: user.discord,
+      bio: user.bio,
+      avatar: user.avatar
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.put('/profile', requireAuth, async (req, res) => {
   const { displayName, discord, bio, avatar } = req.body || {};
   try {
