@@ -164,6 +164,20 @@ const ApiService = {
     }
   },
 
+  async getAllUsers() {
+    if (!API_CONFIG.USE_API) {
+      return null;
+    }
+
+    try {
+      const users = await this.apiRequest('/auth/users');
+      return users;
+    } catch (e) {
+      console.error('Failed to get users:', e);
+      return null;
+    }
+  },
+
   // Items methods
   async getListings(filters = {}) {
     if (!API_CONFIG.USE_API) {

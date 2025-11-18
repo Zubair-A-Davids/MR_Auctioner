@@ -102,4 +102,33 @@ router.put('/password', requireAuth, async (req, res) => {
   }
 });
 
+// Get all users (admin only)
+router.get('/users', requireAuth, async (req, res) => {
+  try {
+    // Check if requester is admin
+    const adminCheck = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
+    if (!adminCheck.rowCount || !adminCheck.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    const usersResult = await query(
+      'SELECT id, email, display_name, is_admin, is_mod, banned_until, banned_reason, created_at FROM users ORDER BY email',
+      []
+    );
+    
+    return res.json(usersResult.rows.map(u => ({
+      username: u.email,
+      displayName: u.display_name,
+      isAdmin: u.is_admin,
+      isMod: u.is_mod,
+      bannedUntil: u.banned_until,
+      bannedReason: u.banned_reason,
+      createdAt: u.created_at
+    })));
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;

@@ -365,19 +365,22 @@ async function renderListings(){
     const timeEl = document.createElement('p'); timeEl.className='listing-time'; timeEl.title=fullDate; timeEl.textContent=timeAgo(l.createdAt);
     footerDiv.appendChild(timeEl);
     
-    // seller controls
-    if(currentUser() && (currentUser() === l.seller || isAdminUser())){
-      const controls = document.createElement('div'); controls.className='controls';
-      const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
-      const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
-      btnEdit.addEventListener('click', ()=> startEditListing(l.id));
-      btnDel.addEventListener('click', async ()=> {
-        const msg = `Delete this listing${isAdminUser() && currentUser()!==l.seller ? ' by '+(l.sellerName||l.seller) : ''}?`;
-        showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
-      });
-      controls.appendChild(btnEdit); controls.appendChild(btnDel);
-      footerDiv.appendChild(controls);
-    }
+    // seller controls - check admin status asynchronously
+    (async () => {
+      const isAdmin = await isAdminUser();
+      if(currentUser() && (currentUser() === l.seller || isAdmin)){
+        const controls = document.createElement('div'); controls.className='controls';
+        const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
+        const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
+        btnEdit.addEventListener('click', ()=> startEditListing(l.id));
+        btnDel.addEventListener('click', async ()=> {
+          const msg = `Delete this listing${isAdmin && currentUser()!==l.seller ? ' by '+(l.sellerName||l.seller) : ''}?`;
+          showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
+        });
+        controls.appendChild(btnEdit); controls.appendChild(btnDel);
+        footerDiv.appendChild(controls);
+      }
+    })();
     
     el.appendChild(footerDiv);
     container.appendChild(el);
@@ -620,9 +623,9 @@ function setup(){
 
   // Admin / Mod panel
   const btnAdmin = qs('#btn-admin-panel');
-  if(btnAdmin){ btnAdmin.addEventListener('click', ()=>{ hideEl(qs('#hamburger-menu')); openAdminPanel('admin'); }); }
+  if(btnAdmin){ btnAdmin.addEventListener('click', async ()=>{ hideEl(qs('#hamburger-menu')); await openAdminPanel('admin'); }); }
   const btnMod = qs('#btn-mod-panel');
-  if(btnMod){ btnMod.addEventListener('click', ()=>{ hideEl(qs('#hamburger-menu')); openAdminPanel('mod'); }); }
+  if(btnMod){ btnMod.addEventListener('click', async ()=>{ hideEl(qs('#hamburger-menu')); await openAdminPanel('mod'); }); }
   const btnAdminClose = qs('#admin-close');
   if(btnAdminClose){ btnAdminClose.addEventListener('click', ()=> hideEl(qs('#admin-modal'))); }
 
@@ -1256,11 +1259,29 @@ function ensureAdmin(){
     saveJSON(LS_USERS, users);
   }
 }
-function isAdminUser(){ const u = currentUser(); if(!u) return false; const me = getUser(u) || {}; return !!me.isAdmin; }
-function isModUser(){ const u = currentUser(); if(!u) return false; const me = getUser(u) || {}; return !!me.isMod; }
+async function isAdminUser(){ 
+  const u = currentUser(); 
+  if(!u) return false; 
+  if(API_CONFIG.USE_API){
+    const me = await ApiService.getMe();
+    return me ? !!me.isAdmin : false;
+  }
+  const me = getUser(u) || {}; 
+  return !!me.isAdmin; 
+}
+async function isModUser(){ 
+  const u = currentUser(); 
+  if(!u) return false; 
+  if(API_CONFIG.USE_API){
+    const me = await ApiService.getMe();
+    return me ? !!me.isMod : false;
+  }
+  const me = getUser(u) || {}; 
+  return !!me.isMod; 
+}
 
 // Admin/Moderation UI
-function openAdminPanel(mode){
+async function openAdminPanel(mode){
   adminView.mode = mode || 'admin';
   const title = qs('#admin-modal-title');
   if(title) title.textContent = adminView.mode === 'mod' ? 'Moderation' : 'Admin Panel';
@@ -1269,14 +1290,34 @@ function openAdminPanel(mode){
   adminView.search = '';
   const roleSel = qs('#admin-role-filter'); if(roleSel) roleSel.value = adminView.roleFilter;
   const searchBox = qs('#admin-search'); if(searchBox) searchBox.value = '';
-  renderAdminUsers(adminView.mode);
+  await renderAdminUsers(adminView.mode);
   showFlex(qs('#admin-modal'));
 }
 
-function renderAdminUsers(mode){
+async function renderAdminUsers(mode){
   const container = qs('#admin-users'); if(!container) return;
-  const users = loadJSON(LS_USERS, {});
-  const viewer = getUser(currentUser()) || {};
+  
+  let users = {};
+  if(API_CONFIG.USE_API){
+    // Fetch users from API
+    const apiUsers = await ApiService.getAllUsers();
+    if(apiUsers){
+      // Convert API format to localStorage format for compatibility
+      apiUsers.forEach(u => {
+        users[u.username] = {
+          displayName: u.displayName || u.username,
+          isAdmin: u.isAdmin,
+          isMod: u.isMod,
+          bannedUntil: u.bannedUntil ? new Date(u.bannedUntil).getTime() : null,
+          bannedReason: u.bannedReason
+        };
+      });
+    }
+  } else {
+    users = loadJSON(LS_USERS, {});
+  }
+  
+  const viewer = API_CONFIG.USE_API ? await ApiService.getMe() : (getUser(currentUser()) || {});
   let keys = Object.keys(users).sort((a,b)=> a.localeCompare(b));
   // Role filter: all | normal | staff
   if(adminView.roleFilter === 'normal'){
