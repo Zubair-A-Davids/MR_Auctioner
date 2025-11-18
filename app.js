@@ -320,9 +320,11 @@ async function renderUserState(){
 }
 
 async function renderListings(){
+  console.log('🎨 renderListings called');
   const container = qs('#listings');
   container.innerHTML = '';
   const listings = await getFilteredListings();
+  console.log('📊 Listings count:', listings.length, 'Unique IDs:', new Set(listings.map(l => l.id)).size);
   if(listings.length === 0){ container.innerHTML = '<p class="hint">No listings match your filters.</p>'; return; }
   listings.forEach(l => {
     const el = document.createElement('div'); el.className='listing card';
