@@ -129,7 +129,10 @@ function currentUser(){ return localStorage.getItem(LS_CURRENT); }
 function currentDisplayName(){ const u = currentUser(); if(!u) return null; const users = loadJSON(LS_USERS, {}); return users[u]?.displayName || u; }
 
 // Listings
-function createListing(title, desc, price, itemTypeId=null){
+async function createListing(title, desc, price, itemTypeId=null){
+  if (API_CONFIG.USE_API) {
+    return await ApiService.createListing(title, desc, price, itemTypeId);
+  }
   if(!title) return {ok:false,msg:'Title required'};
   if(!currentUser()) return {ok:false,msg:'Must be logged in to create listings'};
   const listings = loadJSON(LS_LISTINGS, []);
@@ -169,7 +172,12 @@ function recordModAction(action, targetUser, moderator, reason=''){
   saveJSON(LS_MOD_HISTORY, history);
 }
 
-function getListings(){ return loadJSON(LS_LISTINGS, []); }
+async function getListings(){ 
+  if (API_CONFIG.USE_API) {
+    return await ApiService.getListings();
+  }
+  return loadJSON(LS_LISTINGS, []); 
+}
 
 // Search and filter functions
 function applyFilters(){
@@ -182,8 +190,8 @@ function applyFilters(){
   updateSellerFilterChip();
 }
 
-function getFilteredListings(){
-  let listings = getListings();
+async function getFilteredListings(){
+  let listings = await getListings();
   
   // Filter by name (searches both item title and seller name)
   if(currentFilters.name){
@@ -241,7 +249,7 @@ function resetFilters(){
 }
 
 // UI rendering
-function renderUserState(){
+async function renderUserState(){
   const u = currentUser();
   const greeting = qs('#user-greeting');
   const btnLogout = qs('#btn-logout');
@@ -260,8 +268,21 @@ function renderUserState(){
     btnLogout.classList.remove('hidden');
     btnShowLogin.classList.add('hidden');
     btnShowRegister.classList.add('hidden');
+    // Fetch user data from API if using API, otherwise from localStorage
+    let me = {};
+    if(API_CONFIG.USE_API){
+      const apiUser = await ApiService.getMe();
+      if(apiUser){
+        me = {
+          avatar: apiUser.avatar,
+          isAdmin: apiUser.isAdmin,
+          isMod: apiUser.isMod
+        };
+      }
+    } else {
+      me = getUser(u) || {};
+    }
     // Show navbar avatar if user has one
-    const me = getUser(u) || {};
     if(me.avatar){
       navbarAvatar.src = me.avatar;
       navbarAvatarWrap.classList.remove('hidden');
@@ -297,10 +318,10 @@ function renderUserState(){
   }
 }
 
-function renderListings(){
+async function renderListings(){
   const container = qs('#listings');
   container.innerHTML = '';
-  const listings = getFilteredListings();
+  const listings = await getFilteredListings();
   if(listings.length === 0){ container.innerHTML = '<p class="hint">No listings match your filters.</p>'; return; }
   listings.forEach(l => {
     const el = document.createElement('div'); el.className='listing card';
@@ -350,9 +371,9 @@ function renderListings(){
       const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
       const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
       btnEdit.addEventListener('click', ()=> startEditListing(l.id));
-      btnDel.addEventListener('click', ()=> {
+      btnDel.addEventListener('click', async ()=> {
         const msg = `Delete this listing${isAdminUser() && currentUser()!==l.seller ? ' by '+(l.sellerName||l.seller) : ''}?`;
-        showConfirmModal(msg, ()=> { deleteListing(l.id); renderListings(); });
+        showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
       });
       controls.appendChild(btnEdit); controls.appendChild(btnDel);
       footerDiv.appendChild(controls);
@@ -363,7 +384,10 @@ function renderListings(){
   });
 }
 
-function deleteListing(id){
+async function deleteListing(id){
+  if (API_CONFIG.USE_API) {
+    return await ApiService.deleteListing(id);
+  }
   const listings = getListings();
   const idx = listings.findIndex(x=>x.id===id);
   if(idx===-1) return false;
@@ -381,7 +405,10 @@ function deleteListing(id){
   return true;
 }
 
-function updateListing(id, data){
+async function updateListing(id, data){
+  if (API_CONFIG.USE_API) {
+    return await ApiService.updateListing(id, data);
+  }
   const listings = getListings();
   const idx = listings.findIndex(x=>x.id===id);
   if(idx===-1) return {ok:false,msg:'Listing not found'};
@@ -560,12 +587,12 @@ function renderItemTypeModal(){
 function setup(){
   ensureAdmin();
   // Ensure any modals are hidden on startup (defensive)
-  ['#profile-modal','#user-popup','#item-type-modal','#confirm-modal'].forEach(id => hideEl(qs(id)));
+  ['#profile-modal','#user-popup','#item-type-modal','#confirm-modal','#change-password-modal'].forEach(id => hideEl(qs(id)));
   // show/hide forms
   qs('#btn-show-register').addEventListener('click', ()=>{ qs('#register-card').classList.remove('hidden'); qs('#login-card').classList.add('hidden'); });
   qs('#btn-show-login').addEventListener('click', ()=>{ qs('#login-card').classList.remove('hidden'); qs('#register-card').classList.add('hidden'); });
   qs('#btn-logout').addEventListener('click', ()=>{
-    showConfirmModal('Log out from MR Auctioner?', ()=>{ logout(); renderUserState(); renderListings(); showMessage('Logged out', 'info'); });
+    showConfirmModal('Log out from MR Auctioner?', async ()=>{ ApiService.logout(); await renderUserState(); renderListings(); showMessage('Logged out', 'info'); });
   });
 
   // Item type selector
@@ -719,7 +746,7 @@ function setup(){
 
   // My Profile menu
   const btnProfile = qs('#btn-my-profile');
-  if(btnProfile){ btnProfile.addEventListener('click', ()=>{ openProfileModal(); hideEl(qs('#hamburger-menu')); }); }
+  if(btnProfile){ btnProfile.addEventListener('click', async ()=>{ await openProfileModal(); hideEl(qs('#hamburger-menu')); }); }
 
   // View listings action from menu
   const btnViewListings = qs('#btn-view-listings-menu');
@@ -833,11 +860,11 @@ function setup(){
     }
   });
 
-  qs('#btn-register').addEventListener('click', ()=>{
+  qs('#btn-register').addEventListener('click', async ()=>{
     const u = qs('#reg-username').value.trim(); const p = qs('#reg-password').value; const d = qs('#reg-displayname').value.trim();
     if(u.length < 3) return showMessage('Username must be at least 3 characters', 'error');
     if(p.length < 4) return showMessage('Password must be at least 4 characters', 'error');
-    const res = register(u,p,d);
+    const res = await ApiService.register(u,p,d);
     if(!res.ok) return showMessage(res.msg, 'error');
     showMessage('Account created — you can now login', 'info');
     qs('#register-card').classList.add('hidden');
@@ -851,7 +878,30 @@ function setup(){
   if(cancelRegister){ cancelRegister.addEventListener('click', ()=>{ qs('#register-card').classList.add('hidden'); }); }
 
   // profile modal handlers
-  qs('#profile-cancel').addEventListener('click', ()=> hideEl(qs('#profile-modal')));
+  const profileCancelBtn = qs('#profile-cancel');
+  if(profileCancelBtn) {
+    profileCancelBtn.addEventListener('click', ()=> hideEl(qs('#profile-modal')));
+  }
+  const btnOpenChangePassword = qs('#btn-open-change-password');
+  if(btnOpenChangePassword) {
+    btnOpenChangePassword.addEventListener('click', (e)=> {
+      e.preventDefault();
+      e.stopPropagation();
+      showFlex(qs('#change-password-modal'));
+    });
+  }
+  const btnCancelPassword = qs('#btn-cancel-password');
+  if(btnCancelPassword) {
+    btnCancelPassword.addEventListener('click', (e)=> {
+      e.preventDefault();
+      e.stopPropagation();
+      hideEl(qs('#change-password-modal'));
+      // Clear password fields
+      qs('#profile-current-pass').value = '';
+      qs('#profile-new-pass').value = '';
+      qs('#profile-new-pass-confirm').value = '';
+    });
+  }
   qs('#profile-avatar').addEventListener('change', async (ev)=>{
     const f = ev.target.files && ev.target.files[0];
     if(!f) return;
@@ -865,34 +915,58 @@ function setup(){
     }catch(e){ showMessage('Failed to process avatar', 'error'); }
   });
 
-  qs('#profile-save').addEventListener('click', ()=>{
-    const u = currentUser(); if(!u) return showMessage('Not signed in', 'error');
-    const displayName = qs('#profile-displayname').value.trim();
-    const discord = qs('#profile-discord') ? qs('#profile-discord').value.trim() : '';
-    const bio = qs('#profile-bio').value.trim();
-    const avatar = qs('#profile-avatar').dataset.preview || qs('#profile-avatar-preview').src || '';
-    // password change
-    const cur = qs('#profile-current-pass').value;
-    const np = qs('#profile-new-pass').value;
-    const nc = qs('#profile-new-pass-confirm').value;
-    const users = loadJSON(LS_USERS, {});
-    const me = users[u];
-    if(np || nc){
-      if(!cur) return showMessage('Enter current password to change', 'error');
-      if(me.password !== cur) return showMessage('Current password incorrect', 'error');
+  const profileSaveBtn = qs('#profile-save');
+  if(profileSaveBtn) {
+    profileSaveBtn.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const u = currentUser(); 
+      if(!u) return showMessage('Not signed in', 'error');
+      
+      const displayName = qs('#profile-displayname').value.trim();
+      const discord = qs('#profile-discord') ? qs('#profile-discord').value.trim() : '';
+      const bio = qs('#profile-bio').value.trim();
+      const avatar = qs('#profile-avatar').dataset.preview || qs('#profile-avatar-preview').src || '';
+      
+      const result = await ApiService.updateProfile(displayName, discord, bio, avatar);
+      if(!result.ok) return showMessage(result.msg || 'Failed to save profile', 'error');
+      
+      showMessage('Profile saved', 'info');
+      hideEl(qs('#profile-modal'));
+      await renderUserState(); 
+      renderListings();
+    });
+  }
+
+  // Change password modal save handler
+  const btnSavePassword = qs('#btn-save-password');
+  if(btnSavePassword) {
+    btnSavePassword.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const u = currentUser(); 
+      if(!u) return showMessage('Not signed in', 'error');
+      
+      const cur = qs('#profile-current-pass').value;
+      const np = qs('#profile-new-pass').value;
+      const nc = qs('#profile-new-pass-confirm').value;
+      
+      if(!cur) return showMessage('Enter current password', 'error');
+      if(!np) return showMessage('Enter new password', 'error');
       if(np.length < 4) return showMessage('New password too short', 'error');
       if(np !== nc) return showMessage('New passwords do not match', 'error');
-      me.password = np;
-    }
-    me.displayName = displayName || me.displayName;
-    me.discord = discord || '';
-    me.bio = bio;
-    me.avatar = avatar;
-    saveJSON(LS_USERS, users);
-    showMessage('Profile saved', 'info');
-    hideEl(qs('#profile-modal'));
-    renderUserState(); renderListings();
-  });
+      
+      const result = await ApiService.updatePassword(cur, np);
+      if(!result.ok) return showMessage(result.msg || 'Failed to change password', 'error');
+      
+      showMessage('Password changed successfully', 'info');
+      hideEl(qs('#change-password-modal'));
+      // Clear password fields
+      qs('#profile-current-pass').value = '';
+      qs('#profile-new-pass').value = '';
+      qs('#profile-new-pass-confirm').value = '';
+    });
+  }
 
   // seller popup close
   qs('#popup-close').addEventListener('click', ()=> hideEl(qs('#user-popup')));
@@ -963,13 +1037,13 @@ function setup(){
     }
   });
 
-  qs('#btn-login').addEventListener('click', ()=>{
+  qs('#btn-login').addEventListener('click', async ()=>{
     const u = qs('#login-username').value.trim(); const p = qs('#login-password').value;
     if(!u || !p) return showMessage('Enter username and password', 'error');
-    const res = login(u,p);
+    const res = await ApiService.login(u,p);
     if(!res.ok) return showMessage(res.msg, 'error');
     qs('#login-card').classList.add('hidden'); qs('#login-username').value=''; qs('#login-password').value='';
-    renderUserState(); renderListings();
+    await renderUserState(); renderListings();
     showMessage('Welcome back, ' + currentDisplayName(), 'info');
   });
 
@@ -1020,21 +1094,21 @@ function setup(){
     if(editingId){
       const updateData = { title: t, desc: d, price: Number(p)||0 };
       if(img) updateData.image = img;
-      const res = updateListing(editingId, updateData);
+      const res = await updateListing(editingId, updateData);
       if(!res.ok) return showMessage(res.msg, 'error');
       finishEditUI();
-      renderListings();
+      await renderListings();
       return showMessage('Listing updated', 'info');
     }
 
-    const res = createListing(t,d,p,selectedItemTypeId);
+    const res = await createListing(t,d,p,selectedItemTypeId);
     if(!res.ok) return showMessage(res.msg, 'error');
     // attach image after creation (so we can preserve createdAt and id ordering)
-    if(img){ updateListing(res.listing.id, {image: img}); }
+    if(img){ await updateListing(res.listing.id, {image: img}); }
     qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden'); qs('#item-image-preview').src='';
     qs('#selected-item-info').textContent = '';
     selectedItemTypeId = null;
-      renderListings();
+      await renderListings();
       qs('#create-listing-area').classList.add('hidden');
       qs('#listings-section').classList.remove('hidden');
       showMessage('Listing created', 'info');
@@ -1061,15 +1135,33 @@ function finishEditUI(){
 }
 
 // Profile & user popup helpers
-function openProfileModal(){
+async function openProfileModal(){
   const u = currentUser(); if(!u) return showMessage('Not signed in', 'error');
-  const me = getUser(u) || {};
+  
+  // Fetch user data from API if using API, otherwise from localStorage
+  let me = {};
+  if(API_CONFIG.USE_API){
+    const apiUser = await ApiService.getMe();
+    if(apiUser){
+      me = {
+        displayName: apiUser.displayName,
+        discord: apiUser.discord,
+        bio: apiUser.bio,
+        avatar: apiUser.avatar
+      };
+    }
+  } else {
+    me = getUser(u) || {};
+  }
+  
   qs('#profile-username').textContent = u;
   qs('#profile-displayname').value = me.displayName || '';
   if(qs('#profile-discord')) qs('#profile-discord').value = me.discord || '';
   qs('#profile-bio').value = me.bio || '';
   qs('#profile-avatar-preview').src = me.avatar || '';
   if(me.avatar) qs('#profile-avatar-preview').classList.remove('hidden'); else qs('#profile-avatar-preview').classList.add('hidden');
+  // Clear any previous preview data
+  qs('#profile-avatar').dataset.preview = '';
   showFlex(qs('#profile-modal'));
 }
 

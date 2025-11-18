@@ -183,6 +183,8 @@
     <small>Mirage Realms Unofficial Experimental Auction House</small>
   </footer>
 
+  <script src="config.js"></script>
+  <script src="api-service.js"></script>
   <script src="items.js"></script>
   <script src="app.js"></script>
 
@@ -198,7 +200,7 @@
 
   <!-- Profile Modal (edit) -->
   <div id="profile-modal" class="modal hidden">
-    <div class="modal-inner modal-inner-dark">
+    <div class="modal-inner modal-inner-dark" style="max-width: 600px;">
       <h2 class="profile-modal-title">Your Profile</h2>
       <hr />
       <p><strong>Username:</strong> <span id="profile-username"></span></p>
@@ -215,14 +217,24 @@
         </div>
       </div>
 
-      <hr />
-      <h4>Change Password</h4>
+      <div class="form-actions">
+        <button type="button" id="btn-open-change-password" class="btn btn-accent">Change Password</button>
+        <button type="button" id="profile-save" class="btn btn-primary">Save</button>
+        <button type="button" id="profile-cancel" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div id="change-password-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark small">
+      <h2 class="profile-modal-title">Change Password</h2>
       <label>Current Password <input id="profile-current-pass" type="password" /></label>
       <label>New Password <input id="profile-new-pass" type="password" /></label>
       <label>Confirm New <input id="profile-new-pass-confirm" type="password" /></label>
       <div class="form-actions">
-        <button id="profile-save" class="btn btn-primary">Save</button>
-        <button id="profile-cancel" class="btn">Close</button>
+        <button type="button" id="btn-save-password" class="btn btn-primary">Save Password</button>
+        <button type="button" id="btn-cancel-password" class="btn">Cancel</button>
       </div>
     </div>
   </div>
