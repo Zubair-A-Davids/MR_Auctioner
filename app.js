@@ -204,22 +204,14 @@ async function getFilteredListings(){
     });
   }
   
-  // Filter by seller
+  // Filter by seller (by display name in both modes)
   if(currentFilters.seller){
-    if(API_CONFIG.USE_API) {
-      // In API mode, filter by owner_id (UUID)
-      listings = listings.filter(l => {
-        return String(l.seller).trim() === String(currentFilters.seller).trim();
-      });
-    } else {
-      // In localStorage mode, filter by email or display name
-      const wanted = (currentFilters.seller || '').toLowerCase();
-      listings = listings.filter(l => {
-        const prof = getUser(l.seller) || {};
-        const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
-        return disp === wanted || l.seller.toLowerCase() === wanted;
-      });
-    }
+    const wanted = (currentFilters.seller || '').toLowerCase();
+    listings = listings.filter(l => {
+      const prof = getUser(l.seller) || {};
+      const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
+      return disp === wanted;
+    });
   }
   
   // Sort by date FIRST (to establish base order)
@@ -843,16 +835,17 @@ function setup(){
       qs('#listings-section').classList.remove('hidden');
       
       if(API_CONFIG.USE_API) {
-        // In API mode, filter by user ID
+        // In API mode, filter by display name
         const me = await ApiService.getMe();
         if(me) {
-          currentFilters.seller = String(me.id);
-          currentFilters.sellerLabel = me.displayName || me.email;
+          currentFilters.seller = (me.displayName || me.email || '').trim();
+          currentFilters.sellerLabel = currentFilters.seller;
         }
       } else {
-        // In localStorage mode, filter by email
-        currentFilters.seller = currentUser();
-        currentFilters.sellerLabel = currentDisplayName() || currentUser();
+        // In localStorage mode, filter by display name
+        const disp = currentDisplayName() || currentUser();
+        currentFilters.seller = (disp || '').trim();
+        currentFilters.sellerLabel = currentFilters.seller;
       }
       
       updateURL(); 

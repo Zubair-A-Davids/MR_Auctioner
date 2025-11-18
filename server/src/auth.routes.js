@@ -12,11 +12,17 @@ router.post('/register', async (req, res) => {
   try {
     const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
     if (existing.rowCount) return res.status(409).json({ error: 'Email already in use' });
+    // Determine display name (default to local-part of email if not provided)
+    let desiredDisplay = (displayName || email.split('@')[0]).trim();
+    if (!desiredDisplay) return res.status(400).json({ error: 'displayName required' });
+    // Enforce uniqueness (case-insensitive)
+    const dnExists = await query('SELECT 1 FROM users WHERE lower(display_name) = lower($1)', [desiredDisplay]);
+    if (dnExists.rowCount) return res.status(409).json({ error: 'Display name already in use' });
 
     const password_hash = await bcrypt.hash(password, 10);
     const result = await query(
       'INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id',
-      [email.toLowerCase(), password_hash, displayName || null]
+      [email.toLowerCase(), password_hash, desiredDisplay]
     );
     const userId = result.rows[0].id;
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(userId), expiresIn: '7d' });
@@ -68,9 +74,16 @@ router.get('/me', requireAuth, async (req, res) => {
 router.put('/profile', requireAuth, async (req, res) => {
   const { displayName, discord, bio, avatar } = req.body || {};
   try {
+    if (displayName !== undefined && displayName !== null) {
+      const desiredDisplay = String(displayName).trim();
+      if (!desiredDisplay) return res.status(400).json({ error: 'displayName cannot be empty' });
+      // Check uniqueness among other users
+      const dnExists = await query('SELECT 1 FROM users WHERE lower(display_name) = lower($1) AND id <> $2', [desiredDisplay, req.user.id]);
+      if (dnExists.rowCount) return res.status(409).json({ error: 'Display name already in use' });
+    }
     await query(
-      'UPDATE users SET display_name = $1, discord = $2, bio = $3, avatar = $4 WHERE id = $5',
-      [displayName || null, discord || null, bio || null, avatar || null, req.user.id]
+      'UPDATE users SET display_name = COALESCE($1, display_name), discord = $2, bio = $3, avatar = $4 WHERE id = $5',
+      [displayName !== undefined ? String(displayName).trim() : null, discord || null, bio || null, avatar || null, req.user.id]
     );
     return res.json({ success: true });
   } catch (e) {
@@ -190,8 +203,13 @@ router.put('/users/:email', requireAuth, async (req, res) => {
       values.push(isMod);
     }
     if (displayName !== undefined) {
+      const desiredDisplay = String(displayName).trim();
+      if (!desiredDisplay) return res.status(400).json({ error: 'displayName cannot be empty' });
+      // Ensure uniqueness before updating
+      const dnExists = await query('SELECT 1 FROM users WHERE lower(display_name) = lower($1) AND email <> $2', [desiredDisplay, email]);
+      if (dnExists.rowCount) return res.status(409).json({ error: 'Display name already in use' });
       updates.push(`display_name = $${paramCount++}`);
-      values.push(displayName);
+      values.push(desiredDisplay);
     }
     
     if (updates.length === 0) {

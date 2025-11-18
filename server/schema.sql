@@ -28,3 +28,24 @@ create table if not exists items (
 
 create index if not exists idx_items_owner on items(owner_id);
 create index if not exists idx_items_created on items(created_at desc);
+
+-- Backfill and enforce unique, non-null display names
+-- 1) Backfill any null display names using the local-part of email
+update users
+set display_name = split_part(email, '@', 1)
+where display_name is null;
+
+-- 2) Enforce NOT NULL on display_name
+do $$
+begin
+  begin
+    alter table users alter column display_name set not null;
+  exception when others then
+    -- ignore if already set
+    null;
+  end;
+end $$;
+
+-- 3) Enforce case-insensitive uniqueness of display_name
+create unique index if not exists idx_users_display_name_unique
+  on users (lower(display_name));
