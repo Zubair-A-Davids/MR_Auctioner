@@ -368,13 +368,26 @@ async function renderListings(){
     // seller controls - check admin status asynchronously
     (async () => {
       const isAdmin = await isAdminUser();
-      if(currentUser() && (currentUser() === l.seller || isAdmin)){
+      let isOwner = false;
+      
+      if(currentUser()) {
+        if(API_CONFIG.USE_API) {
+          // In API mode, compare user IDs
+          const me = await ApiService.getMe();
+          isOwner = me && String(me.id) === String(l.seller);
+        } else {
+          // In localStorage mode, compare emails
+          isOwner = currentUser() === l.seller;
+        }
+      }
+      
+      if(isOwner || isAdmin){
         const controls = document.createElement('div'); controls.className='controls';
         const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
         const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
         btnEdit.addEventListener('click', ()=> startEditListing(l.id));
         btnDel.addEventListener('click', async ()=> {
-          const msg = `Delete this listing${isAdmin && currentUser()!==l.seller ? ' by '+(l.sellerName||l.seller) : ''}?`;
+          const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
           showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
         });
         controls.appendChild(btnEdit); controls.appendChild(btnDel);
@@ -795,6 +808,34 @@ function setup(){
   // View listings action from menu
   const btnViewListings = qs('#btn-view-listings-menu');
   if(btnViewListings){ btnViewListings.addEventListener('click', ()=>{ qs('#create-listing-area').classList.add('hidden'); hideEl(qs('#hamburger-menu')); qs('#listings-section').classList.remove('hidden'); currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
+  
+  // My Listings action from menu
+  const btnMyListings = qs('#btn-my-listings');
+  if(btnMyListings){ 
+    btnMyListings.addEventListener('click', async ()=>{ 
+      qs('#create-listing-area').classList.add('hidden'); 
+      hideEl(qs('#hamburger-menu')); 
+      qs('#listings-section').classList.remove('hidden');
+      
+      if(API_CONFIG.USE_API) {
+        // In API mode, filter by user ID
+        const me = await ApiService.getMe();
+        if(me) {
+          currentFilters.seller = String(me.id);
+          currentFilters.sellerLabel = me.displayName || me.email;
+        }
+      } else {
+        // In localStorage mode, filter by email
+        currentFilters.seller = currentUser();
+        currentFilters.sellerLabel = currentDisplayName() || currentUser();
+      }
+      
+      updateURL(); 
+      updateSellerFilterChip(); 
+      renderListings(); 
+    }); 
+  }
+  
   // Clear seller filter chip
   const clearChip = qs('#clear-seller-filter');
   if(clearChip){ clearChip.addEventListener('click', ()=>{ currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
@@ -910,9 +951,19 @@ function setup(){
     if(p.length < 4) return showMessage('Password must be at least 4 characters', 'error');
     const res = await ApiService.register(u,p,d);
     if(!res.ok) return showMessage(res.msg, 'error');
-    showMessage('Account created — you can now login', 'info');
-    qs('#register-card').classList.add('hidden');
-    qs('#reg-username').value=''; qs('#reg-password').value=''; qs('#reg-displayname').value='';
+    
+    // Auto-login after successful registration
+    const loginRes = await ApiService.login(u, p);
+    if(loginRes.ok) {
+      showMessage('Account created and logged in successfully!', 'success');
+      qs('#register-card').classList.add('hidden');
+      qs('#reg-username').value=''; qs('#reg-password').value=''; qs('#reg-displayname').value='';
+      await updateAuthUI();
+    } else {
+      showMessage('Account created — you can now login', 'info');
+      qs('#register-card').classList.add('hidden');
+      qs('#reg-username').value=''; qs('#reg-password').value=''; qs('#reg-displayname').value='';
+    }
   });
 
   // cancel buttons for auth cards
