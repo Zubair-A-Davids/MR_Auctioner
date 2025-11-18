@@ -336,6 +336,19 @@ async function renderListings(){
   const container = qs('#listings');
   container.innerHTML = '';
   const listings = await getFilteredListings();
+  
+  // Debug: Check for duplicates
+  const ids = listings.map(l => l.id);
+  const uniqueIds = new Set(ids);
+  if(ids.length !== uniqueIds.size) {
+    console.error('🚨 DUPLICATE IDs FOUND:', {
+      total: ids.length,
+      unique: uniqueIds.size,
+      duplicates: ids.filter((id, i) => ids.indexOf(id) !== i)
+    });
+  }
+  console.log('📊 Rendering', ids.length, 'listings, unique:', uniqueIds.size);
+  
   if(listings.length === 0){ container.innerHTML = '<p class="hint">No listings match your filters.</p>'; return; }
   listings.forEach(l => {
     const el = document.createElement('div'); el.className='listing card';
