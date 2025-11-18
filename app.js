@@ -21,19 +21,6 @@ const hideEl = el => { if(!el) return; el.classList.add('hidden'); el.classList.
 const showFlex = el => { if(!el) return; el.style.display = 'flex'; el.classList.remove('hidden'); el.classList.add('show'); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 
-// Debounce helper to prevent rapid function calls
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
 // UX helpers
 function showMessage(msg, type='info', timeout=4000){
   const el = qs('#site-message');
@@ -193,13 +180,13 @@ async function getListings(){
 }
 
 // Search and filter functions
-async function applyFilters(){
+function applyFilters(){
   currentFilters.name = qs('#search-name').value.trim().toLowerCase();
   currentFilters.priceSort = qs('#search-price').value;
   currentFilters.sort = qs('#search-sort').value;
   // do not overwrite seller here; explicit actions set it
   updateURL();
-  await renderListings();
+  renderListings();
   updateSellerFilterChip();
 }
 
@@ -217,14 +204,22 @@ async function getFilteredListings(){
     });
   }
   
-  // Filter by seller (by display name in both modes)
+  // Filter by seller
   if(currentFilters.seller){
-    const wanted = (currentFilters.seller || '').toLowerCase();
-    listings = listings.filter(l => {
-      const prof = getUser(l.seller) || {};
-      const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
-      return disp === wanted;
-    });
+    if(API_CONFIG.USE_API) {
+      // In API mode, filter by owner_id (UUID)
+      listings = listings.filter(l => {
+        return String(l.seller).trim() === String(currentFilters.seller).trim();
+      });
+    } else {
+      // In localStorage mode, filter by email or display name
+      const wanted = (currentFilters.seller || '').toLowerCase();
+      listings = listings.filter(l => {
+        const prof = getUser(l.seller) || {};
+        const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
+        return disp === wanted || l.seller.toLowerCase() === wanted;
+      });
+    }
   }
   
   // Sort by date FIRST (to establish base order)
@@ -336,19 +331,6 @@ async function renderListings(){
   const container = qs('#listings');
   container.innerHTML = '';
   const listings = await getFilteredListings();
-  
-  // Debug: Check for duplicates
-  const ids = listings.map(l => l.id);
-  const uniqueIds = new Set(ids);
-  if(ids.length !== uniqueIds.size) {
-    console.error('🚨 DUPLICATE IDs FOUND:', {
-      total: ids.length,
-      unique: uniqueIds.size,
-      duplicates: ids.filter((id, i) => ids.indexOf(id) !== i)
-    });
-  }
-  console.log('📊 Rendering', ids.length, 'listings, unique:', uniqueIds.size);
-  
   if(listings.length === 0){ container.innerHTML = '<p class="hint">No listings match your filters.</p>'; return; }
   listings.forEach(l => {
     const el = document.createElement('div'); el.className='listing card';
@@ -406,6 +388,15 @@ async function renderListings(){
             const myId = String(me.id).trim();
             const sellerId = String(l.seller).trim();
             isOwner = myId === sellerId;
+            console.log('🔍 Ownership check:', {
+              listing: l.title,
+              myId: myId,
+              sellerId: sellerId,
+              match: myId === sellerId,
+              isOwner: isOwner,
+              isAdmin: isAdmin,
+              willShowControls: isOwner || isAdmin
+            });
           } else {
             console.warn('⚠️ Could not fetch current user info from API');
           }
@@ -852,17 +843,16 @@ function setup(){
       qs('#listings-section').classList.remove('hidden');
       
       if(API_CONFIG.USE_API) {
-        // In API mode, filter by display name
+        // In API mode, filter by user ID
         const me = await ApiService.getMe();
         if(me) {
-          currentFilters.seller = (me.displayName || me.email || '').trim();
-          currentFilters.sellerLabel = currentFilters.seller;
+          currentFilters.seller = String(me.id);
+          currentFilters.sellerLabel = me.displayName || me.email;
         }
       } else {
-        // In localStorage mode, filter by display name
-        const disp = currentDisplayName() || currentUser();
-        currentFilters.seller = (disp || '').trim();
-        currentFilters.sellerLabel = currentFilters.seller;
+        // In localStorage mode, filter by email
+        currentFilters.seller = currentUser();
+        currentFilters.sellerLabel = currentDisplayName() || currentUser();
       }
       
       updateURL(); 
@@ -875,9 +865,8 @@ function setup(){
   const clearChip = qs('#clear-seller-filter');
   if(clearChip){ clearChip.addEventListener('click', ()=>{ currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
 
-  // Search and filter event listeners with debouncing for text input
-  const debouncedApplyFilters = debounce(applyFilters, 300);
-  qs('#search-name').addEventListener('input', debouncedApplyFilters);
+  // Search and filter event listeners
+  qs('#search-name').addEventListener('input', applyFilters);
   qs('#search-price').addEventListener('change', applyFilters);
   qs('#search-sort').addEventListener('change', applyFilters);
   qs('#search-reset').addEventListener('click', resetFilters);
