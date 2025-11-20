@@ -115,7 +115,14 @@ const ApiService = {
     }
 
     try {
-      const data = await this.apiRequest(`/auth/users/${userId}/profile`);
+      // Check if userId is a UUID (contains hyphens) or email
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+      
+      const endpoint = isUUID 
+        ? `/auth/users/${userId}/profile`
+        : `/auth/users/by-email/${encodeURIComponent(userId)}/profile`;
+      
+      const data = await this.apiRequest(endpoint);
       return data;
     } catch (e) {
       console.error('Failed to get user profile:', e);
@@ -244,6 +251,8 @@ const ApiService = {
         desc: item.description,
         price: item.price,
         itemTypeId: item.item_type_id || null,
+        elite: !!item.elite,
+        element: item.element || null,
         seller: item.owner_id,
         sellerName: item.owner_name,
         createdAt: item.created_at,
@@ -255,9 +264,9 @@ const ApiService = {
     }
   },
 
-  async createListing(title, desc, price, itemTypeId = null) {
+  async createListing(title, desc, price, itemTypeId = null, elite = false, element = null) {
     if (!API_CONFIG.USE_API) {
-      return createListing(title, desc, price, itemTypeId);
+      return createListing(title, desc, price, itemTypeId, elite, element);
     }
 
     if (!currentUser()) {
@@ -272,11 +281,13 @@ const ApiService = {
           description: desc,
           price: Number(price) || 0,
           itemTypeId: itemTypeId,
+          elite: !!elite,
+          element: element || null,
           imageUrl: null // Will be updated separately if needed
         })
       });
 
-      return { ok: true, listing: { id: data.id, title, desc, price, itemTypeId, seller: currentUser(), sellerName: currentDisplayName(), createdAt: new Date().toISOString(), image: null } };
+      return { ok: true, listing: { id: data.id, title, desc, price, itemTypeId, elite, element, seller: currentUser(), sellerName: currentDisplayName(), createdAt: new Date().toISOString(), image: null } };
     } catch (e) {
       return { ok: false, msg: e.message };
     }
@@ -295,6 +306,8 @@ const ApiService = {
           description: updates.desc,
           price: updates.price,
           itemTypeId: updates.itemTypeId,
+          elite: updates.elite,
+          element: updates.element,
           imageUrl: updates.image
         })
       });
@@ -344,6 +357,68 @@ const ApiService = {
     } catch (e) {
       console.error('Failed to get stats:', e);
       return { totalUsers: 0, activeListings: 0, itemsSold: 0 };
+    }
+  },
+
+  // Check API connection status
+  async checkConnection() {
+    if (!API_CONFIG.USE_API) {
+      return { connected: true, mode: 'localStorage' };
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${API_CONFIG.API_BASE}/health`, {
+        signal: controller.signal,
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        return { connected: true, mode: 'API' };
+      }
+      return { connected: false, mode: 'API', error: 'API returned error' };
+    } catch (e) {
+      return { connected: false, mode: 'API', error: e.message };
+    }
+  },
+
+  // Get items sold history
+  async getItemsSoldHistory(userId = null) {
+    if (!API_CONFIG.USE_API) {
+      // Fallback to localStorage
+      const history = loadJSON(LS_ITEMS_SOLD, {});
+      const targetUser = userId || currentUser();
+      return history[targetUser] || [];
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (userId) params.set('userId', userId);
+      
+      const query = params.toString();
+      const data = await this.apiRequest(`/items/sold/history${query ? '?' + query : ''}`);
+      
+      // Transform to match localStorage format
+      return data.map(item => ({
+        id: item.original_item_id,
+        title: item.title,
+        desc: item.description || '',
+        price: item.price,
+        itemTypeId: item.item_type_id,
+        elite: !!item.elite,
+        element: item.element || null,
+        createdAt: item.created_at,
+        deletedAt: item.deleted_at
+      }));
+    } catch (e) {
+      console.error('Failed to get items sold history:', e);
+      return [];
     }
   }
 };

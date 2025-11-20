@@ -6,6 +6,8 @@
   <title>Mirage Realms Auctioner</title>
   <link rel="icon" type="image/png" href="icon.png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="preload" as="image" href="icon.png">
+  <link rel="preload" as="image" href="Gold.png">
   <style>
     .item-type-image[title]:hover::after {
       content: attr(title);
@@ -49,7 +51,13 @@
   </style>
   
   <header class="site-header">
-    <h1 class="site-title" style="cursor: pointer;" id="site-title-link"><img src="icon.png" alt="" class="site-logo"> MR Auctioner</h1>
+    <div class="header-left">
+      <h1 class="site-title" style="cursor: pointer;" id="site-title-link"><img src="icon.png" alt="" class="site-logo"> MR Auctioner</h1>
+      <div id="api-status" class="api-status" title="API Connection Status">
+        <span class="api-status-dot"></span>
+        <span class="api-status-text">Checking...</span>
+      </div>
+    </div>
     <nav>
       <div class="nav-user-section">
         <div id="navbar-avatar-wrap" class="navbar-avatar-wrap hidden">
@@ -86,7 +94,7 @@
         <h2>Create Account</h2>
         <label>Username <input id="reg-username" /></label>
         <label>Password <input id="reg-password" type="password" /></label>
-        <label>Display Name <input id="reg-displayname" /></label>
+        <label>Display Name <input id="reg-displayname" maxlength="20" /></label>
         <div class="form-actions">
           <button id="btn-register" class="btn btn-primary">Create account</button>
           <button id="btn-cancel-register" class="btn">Cancel</button>
@@ -97,7 +105,7 @@
 
       <div class="card hidden" id="login-card">
         <h2>Login</h2>
-        <label>Username <input id="login-username" /></label>
+        <label>Username <input id="login-username" maxlength="20" /></label>
         <label>Password <input id="login-password" type="password" /></label>
         <div class="form-actions">
           <button id="btn-login" class="btn btn-primary">Login</button>
@@ -109,9 +117,9 @@
     <section id="create-listing-area" class="card hidden">
       <h2>Create Listing</h2>
       <button id="btn-open-item-types" class="btn btn-primary">Browse Item Types</button>
-      <label>Item name <input id="item-title" placeholder="Enter item name or select from Browse Item Types..." /></label>
+      <label>Item name <input id="item-title" maxlength="30" placeholder="Enter item name or select from Browse Item Types..." /></label>
       <label>Item Type Description (read-only) <textarea id="item-type-desc" disabled class="disabled-input"></textarea></label>
-      <label>Your Listing Description <input id="item-desc" placeholder="Add details about this specific listing..." /></label>
+      <label>Your Listing Description <input id="item-desc" maxlength="40" placeholder="Add details about this specific listing..." /></label>
       <label>Price
         <div class="price-spinner">
           <button id="btn-price-minus" class="btn btn-accent">−</button>
@@ -119,6 +127,26 @@
           <button id="btn-price-plus" class="btn btn-accent">+</button>
           <img src="Gold.png" alt="gold" class="gold-icon" />
         </div>
+      </label>
+
+      <div class="status-selection">
+        <label class="status-label">
+          <input type="checkbox" id="item-elite" />
+          <span>Elite</span>
+          <img src="Items/Elite/Elite.png" alt="Elite" class="status-preview-icon" />
+        </label>
+      </div>
+
+      <label>Element (optional)
+        <select id="item-element" class="search-select">
+          <option value="">None</option>
+          <option value="Energy">Energy</option>
+          <option value="Fire">Fire</option>
+          <option value="Ice">Ice</option>
+          <option value="Mana">Mana</option>
+          <option value="Nature">Nature</option>
+          <option value="Physical">Physical</option>
+        </select>
       </label>
 
       <div class="file-input" id="image-drop-zone">
@@ -202,6 +230,27 @@
               <option value="oldest">Oldest First</option>
             </select>
           </div>
+          <div class="search-field">
+            <label>Elite Status</label>
+            <select id="search-elite" class="search-select">
+              <option value="all">All Items</option>
+              <option value="elite">Elite Only</option>
+              <option value="non-elite">Non-Elite Only</option>
+            </select>
+          </div>
+          <div class="search-field">
+            <label>Element</label>
+            <select id="search-element" class="search-select">
+              <option value="all">All Elements</option>
+              <option value="energy">Energy</option>
+              <option value="fire">Fire</option>
+              <option value="ice">Ice</option>
+              <option value="mana">Mana</option>
+              <option value="nature">Nature</option>
+              <option value="physical">Physical</option>
+              <option value="none">No Element</option>
+            </select>
+          </div>
         </div>
         <div id="seller-filter-chip" class="filter-chip hidden" aria-live="polite">
           <span id="seller-filter-text"></span>
@@ -236,10 +285,10 @@
     <small>Mirage Realms Unofficial Experimental Auction House</small>
   </footer>
 
-  <script src="config.js"></script>
-  <script src="api-service.js"></script>
-  <script src="items.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js" defer></script>
+  <script src="api-service.js" defer></script>
+  <script src="items.js" defer></script>
+  <script src="app.js" defer></script>
 
   <!-- Item Type Selector Modal -->
   <div id="item-type-modal" class="modal hidden">
@@ -257,9 +306,9 @@
       <h2 class="profile-modal-title">Your Profile</h2>
       <hr />
       <p><strong>Username:</strong> <span id="profile-username"></span></p>
-      <label>Display Name <input id="profile-displayname" /></label>
-      <label>Discord Name <input id="profile-discord" placeholder="e.g. user#1234" /></label>
-      <label>Bio <textarea id="profile-bio" rows="4"></textarea></label>
+      <label>Display Name <input id="profile-displayname" maxlength="20" /></label>
+      <label>Discord Name <input id="profile-discord" maxlength="20" placeholder="e.g. user#1234" /></label>
+      <label>Bio <textarea id="profile-bio" rows="4" maxlength="100"></textarea></label>
       <div class="profile-avatar-section">
         <label style="margin-bottom: 0.25rem; display: block; font-weight: 600;">Avatar</label>
         <div class="avatar-upload-row">
@@ -361,7 +410,7 @@
         <input id="ban-minutes" type="number" min="1" value="60" />
       </label>
       <label>Reason (optional)
-        <input id="ban-reason" type="text" maxlength="120" placeholder="Reason for ban" />
+        <input id="ban-reason" type="text" maxlength="80" placeholder="Reason for ban" />
       </label>
       <div class="form-actions">
         <button id="ban-confirm" class="btn btn-accent">Confirm</button>
@@ -375,7 +424,7 @@
     <div class="modal-inner small">
       <h3 id="rename-title">Rename Display Name</h3>
       <label>New Display Name
-        <input id="rename-input" type="text" maxlength="40" placeholder="Enter new display name" />
+        <input id="rename-input" type="text" maxlength="20" placeholder="Enter new display name" />
       </label>
       <div class="form-actions">
         <button id="rename-confirm" class="btn btn-primary">Confirm</button>
@@ -397,6 +446,22 @@
       </div>
       <div class="form-actions">
         <button id="items-sold-close" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Listing Detail modal -->
+  <div id="listing-detail-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width:720px;">
+      <h2 id="listing-detail-title" style="display:flex;align-items:center;gap:.5rem;margin-top:0"></h2>
+      <div id="listing-detail-meta" class="hint" style="margin:.25rem 0 .75rem"></div>
+      <div id="listing-detail-info" class="hint" style="margin:.25rem 0"></div>
+      <div id="listing-detail-notes" style="margin:.5rem 0"></div>
+      <div class="section-separator"></div>
+      <div id="listing-detail-image" class="image-container no-image"><span>Loading...</span></div>
+      <div class="detail-bottom-separator"></div>
+      <div class="form-actions" style="margin-top:1rem;justify-content:flex-end">
+        <button id="listing-detail-close" class="btn btn-accent">Close</button>
       </div>
     </div>
   </div>

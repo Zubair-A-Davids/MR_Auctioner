@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from './db.js';
 import { requireAuth } from './middleware.auth.js';
+import { getStatsCache, setStatsCache } from './cache.js';
 
 const router = express.Router();
 
@@ -73,6 +74,26 @@ router.get('/me', requireAuth, async (req, res) => {
 router.get('/users/:userId/profile', async (req, res) => {
   try {
     const ures = await query('SELECT id, display_name, discord, bio, avatar, last_seen FROM users WHERE id = $1', [req.params.userId]);
+    if (!ures.rowCount) return res.status(404).json({ error: 'User not found' });
+    const user = ures.rows[0];
+    return res.json({ 
+      id: user.id,
+      displayName: user.display_name,
+      discord: user.discord,
+      bio: user.bio,
+      avatar: user.avatar,
+      lastSeen: user.last_seen
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user profile by email (for backward compatibility with localStorage mode)
+router.get('/users/by-email/:email/profile', async (req, res) => {
+  try {
+    const ures = await query('SELECT id, display_name, discord, bio, avatar, last_seen FROM users WHERE email = $1', [req.params.email]);
     if (!ures.rowCount) return res.status(404).json({ error: 'User not found' });
     const user = ures.rows[0];
     return res.json({ 
@@ -242,15 +263,31 @@ router.put('/users/:email', requireAuth, async (req, res) => {
 // Get site statistics (public endpoint)
 router.get('/stats', async (req, res) => {
   try {
+    // Check cache first
+    const cached = getStatsCache();
+    if (cached.hit) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('X-Cache-Age', cached.age);
+      return res.json(cached.data);
+    }
+    
+    // Fetch fresh data
     const userCount = await query('SELECT COUNT(*) as count FROM users');
     const listingCount = await query('SELECT COUNT(*) as count FROM items');
     const soldCount = await query('SELECT COUNT(*) as count FROM items_sold');
     
-    return res.json({
+    const result = {
       totalUsers: parseInt(userCount.rows[0].count),
       activeListings: parseInt(listingCount.rows[0].count),
       itemsSold: parseInt(soldCount.rows[0].count)
-    });
+    };
+    
+    // Update cache
+    setStatsCache(result);
+    
+    res.setHeader('X-Cache', 'MISS');
+    res.setHeader('Cache-Control', 'public, max-age=300'); // Browser cache for 5 minutes
+    return res.json(result);
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: 'Server error' });

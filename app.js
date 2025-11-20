@@ -7,12 +7,17 @@ const LS_ITEMS_SOLD = 'mr_itemsSold';
 const LS_MOD_HISTORY = 'mr_modHistory';
 
 // Filter state
-let currentFilters = { name: '', priceSort: 'none', sort: 'newest', seller: '' };
+let currentFilters = { name: '', priceSort: 'none', sort: 'newest', seller: '', elite: 'all', element: 'all' };
+let currentRenderedListingIds = [];
+let currentDetailIndex = -1;
 // Admin/Mod panel state
 const adminView = { mode: 'admin', roleFilter: 'all', search: '', page: 1, pageSize: 50 };
 const itemsSoldView = { page: 1, pageSize: 20 };
 let banTargetUser = null;
 let renameTargetUser = null;
+
+// API connection status
+let apiStatusCheckInterval = null;
 
 // Utilities
 const qs = sel => document.querySelector(sel);
@@ -21,11 +26,107 @@ const hideEl = el => { if(!el) return; el.classList.add('hidden'); el.classList.
 const showFlex = el => { if(!el) return; el.style.display = 'flex'; el.classList.remove('hidden'); el.classList.add('show'); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 
+// Debounce helper for performance optimization
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+// Open enlarged listing detail modal
+async function openListingDetail(id){
+  let listings;
+  if(API_CONFIG.USE_API){
+    listings = await ApiService.getListings();
+  } else {
+    listings = getListings();
+  }
+  const l = listings.find(x => String(x.id) === String(id));
+  if(!l){ return showMessage('Listing not found','error'); }
+
+  const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
+  const sellerProfile = getUser(l.seller) || {};
+  const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
+
+  const titleEl = qs('#listing-detail-title');
+  const metaEl = qs('#listing-detail-meta');
+  const infoEl = qs('#listing-detail-info');
+  const notesEl = qs('#listing-detail-notes');
+  const imgWrap = qs('#listing-detail-image');
+
+  // Title with icons
+  let titleHtml = `${escapeHtml(l.title)}`;
+  if(l.element){
+    titleHtml += ` <img class="element-icon-title element-${l.element.toLowerCase()}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" style="width:32px;height:32px">`;
+  }
+  if(l.elite){
+    titleHtml += ` <img src="Items/Elite/Elite.png" alt="Elite" style="width:28px;height:28px;vertical-align:middle">`;
+  }
+  titleEl.innerHTML = titleHtml;
+
+  // Meta (seller + price + time)
+  metaEl.innerHTML = `<strong>Seller:</strong> <span style="color:var(--accent)">${escapeHtml(sellerDisplay)}</span> · <strong>Price:</strong> ${Number(l.price)||0} gold`;
+
+  // Info
+  if(itemType){
+    infoEl.innerHTML = `<strong>Info:</strong> ${escapeHtml(itemType.description)}`;
+  } else { infoEl.innerHTML = ''; }
+
+  // Seller notes
+  if(l.desc){
+    notesEl.innerHTML = `<strong>Seller's Notes:</strong><div style="margin-top:.25rem">${colorizeStats(escapeHtml(l.desc))}</div>`;
+  } else { notesEl.innerHTML = ''; }
+
+  // Image or placeholder with listed overlay (bottom separator handled by static markup)
+  const listedText = daysAgoText(l.createdAt);
+  if(l.image){
+    imgWrap.classList.remove('no-image');
+    imgWrap.innerHTML = `
+      <img id="listing-detail-img" src="${l.image}" alt="${escapeHtml(l.title)}" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px"/>
+      <div class="listed-overlay">Listed: ${listedText}</div>
+    `;
+    // Single click to open full image modal
+    const img = qs('#listing-detail-img');
+    img.onclick = () => {
+      const modal = qs('#image-modal');
+      const modalImg = qs('#modal-image');
+      modalImg.src = img.src;
+      modal.classList.remove('hidden');
+      modal.classList.add('show');
+    };
+  } else {
+    imgWrap.classList.add('no-image');
+    imgWrap.innerHTML = `
+      <span>No User Screenshot</span>
+      <div class="listed-overlay">Listed: ${listedText}</div>
+    `;
+  }
+
+  showFlex(qs('#listing-detail-modal'));
+  qs('#listing-detail-close').onclick = () => hideEl(qs('#listing-detail-modal'));
+  // Update current detail index for navigation
+  currentDetailIndex = currentRenderedListingIds.findIndex(x => String(x) === String(l.id));
+}
+
 // UX helpers
 function showMessage(msg, type='info', timeout=4000){
   const el = qs('#site-message');
   if(!el) return alert(msg);
-  el.textContent = msg; el.className = 'message ' + (type||'info'); el.style.display = '';
+  el.textContent = msg; el.className = 'message ' + (type||'info'); 
+  el.style.display = 'flex';
+  el.style.position = 'fixed';
+  el.style.top = '50%';
+  el.style.left = '50%';
+  el.style.transform = 'translate(-50%, -50%)';
+  el.style.zIndex = '10000';
+  el.style.maxWidth = '90vw';
+  el.style.width = 'auto';
+  el.style.margin = '0';
   if(timeout && timeout>0){ setTimeout(()=>{ el.style.display='none'; }, timeout); }
 }
 
@@ -43,6 +144,17 @@ function timeAgo(iso){
     const days = Math.floor(hr/24);
     return `${days}d ago`;
   }catch(e){ return new Date(iso).toLocaleString(); }
+}
+
+function daysAgoText(iso){
+  try{
+    const then = new Date(iso);
+    const diff = Date.now() - then.getTime();
+    const days = Math.floor(diff / (1000*60*60*24));
+    if(days <= 0) return 'Today';
+    if(days === 1) return '1 day ago';
+    return days + ' days ago';
+  }catch(e){ return 'Unknown'; }
 }
 
 // Storage helpers
@@ -129,14 +241,14 @@ function currentUser(){ return localStorage.getItem(LS_CURRENT); }
 function currentDisplayName(){ const u = currentUser(); if(!u) return null; const users = loadJSON(LS_USERS, {}); return users[u]?.displayName || u; }
 
 // Listings
-async function createListing(title, desc, price, itemTypeId=null){
+async function createListing(title, desc, price, itemTypeId=null, elite=false, element=null){
   if (API_CONFIG.USE_API) {
-    return await ApiService.createListing(title, desc, price, itemTypeId);
+    return await ApiService.createListing(title, desc, price, itemTypeId, elite, element);
   }
   if(!title) return {ok:false,msg:'Title required'};
   if(!currentUser()) return {ok:false,msg:'Must be logged in to create listings'};
   const listings = loadJSON(LS_LISTINGS, []);
-  const l = {id:uid(), title, desc, price: Number(price)||0, itemTypeId, seller: currentUser(), sellerName: currentDisplayName(), createdAt: new Date().toISOString(), image:null};
+  const l = {id:uid(), title, desc, price: Number(price)||0, itemTypeId, elite: !!elite, element: element || null, seller: currentUser(), sellerName: currentDisplayName(), createdAt: new Date().toISOString(), image:null};
   listings.unshift(l);
   saveJSON(LS_LISTINGS, listings);
   // Record to items sold history
@@ -187,6 +299,8 @@ async function applyFilters(){
   currentFilters.name = qs('#search-name').value.trim().toLowerCase();
   currentFilters.priceSort = qs('#search-price').value;
   currentFilters.sort = qs('#search-sort').value;
+  currentFilters.elite = qs('#search-elite').value;
+  currentFilters.element = qs('#search-element').value;
   
   // Apply filters immediately
   updateURL();
@@ -226,6 +340,22 @@ async function getFilteredListings(){
     }
   }
   
+  // Filter by Elite status
+  if(currentFilters.elite === 'elite'){
+    listings = listings.filter(l => l.elite === true);
+  } else if(currentFilters.elite === 'non-elite'){
+    listings = listings.filter(l => !l.elite);
+  }
+  
+  // Filter by Element
+  if(currentFilters.element && currentFilters.element !== 'all'){
+    if(currentFilters.element === 'none'){
+      listings = listings.filter(l => !l.element || l.element === '');
+    } else {
+      listings = listings.filter(l => l.element && l.element.toLowerCase() === currentFilters.element.toLowerCase());
+    }
+  }
+  
   // Sort by date FIRST (to establish base order)
   if(currentFilters.sort === 'oldest'){
     listings = listings.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -255,7 +385,9 @@ function resetFilters(){
   qs('#search-name').value = '';
   qs('#search-price').value = 'none';
   qs('#search-sort').value = 'newest';
-  currentFilters = { name: '', priceSort: 'none', sort: 'newest', seller: '', sellerLabel: '' };
+  qs('#search-elite').value = 'all';
+  qs('#search-element').value = 'all';
+  currentFilters = { name: '', priceSort: 'none', sort: 'newest', seller: '', sellerLabel: '', elite: 'all', element: 'all' };
   updateURL();
   renderListings();
   updateSellerFilterChip();
@@ -282,6 +414,11 @@ async function renderUserState(){
   if(statsSection) {
     statsSection.classList.remove('hidden');
     await renderSiteStats();
+  }
+  
+  // Update API status when rendering user state
+  if (typeof updateApiStatus === 'function') {
+    updateApiStatus();
   }
   
   if(u){
@@ -368,52 +505,92 @@ async function renderListings(){
   const loader = qs('#listings-loader');
   const container = qs('#listings');
   if(loader) loader.classList.remove('hidden');
-  if(container) container.innerHTML = '';
+  if(container) container.style.opacity = '0.5'; // Fade out old content
   
   try {
     const listings = await getFilteredListings();
+    currentRenderedListingIds = [];
+    
+    // Clear container
+    if(container) container.innerHTML = '';
     
     // Hide loading indicator
     if(loader) loader.classList.add('hidden');
+    if(container) container.style.opacity = '1'; // Fade in new content
     
     if(listings.length === 0){ 
       container.innerHTML = '<p class="hint">No listings match your filters.</p>'; 
       return; 
     }
     
+    // Fetch user info once for all listings (performance optimization)
+    const isAdmin = await isAdminUser();
+    let currentUserId = null;
+    
+    if(currentUser() && API_CONFIG.USE_API) {
+      const me = await ApiService.getMe();
+      if(me) {
+        currentUserId = String(me.id).trim();
+      }
+    }
+    
     listings.forEach(l => {
+    currentRenderedListingIds.push(String(l.id));
     const el = document.createElement('div'); el.className='listing card';
     const fullDate = new Date(l.createdAt).toLocaleString();
     const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
+    
+    // Elite badge in top right corner
+    if(l.elite){
+      const eliteBadge = document.createElement('img');
+      eliteBadge.className = 'elite-badge-corner';
+      eliteBadge.src = 'Items/Elite/Elite.png';
+      eliteBadge.alt = 'Elite';
+      eliteBadge.title = 'Elite Item';
+      eliteBadge.loading = 'lazy';
+      el.appendChild(eliteBadge);
+    }
     
     // Content area
     const contentDiv = document.createElement('div'); contentDiv.className='listing-content';
     const sellerProfile = getUser(l.seller) || {};
     const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
-    let html = `<h3>${escapeHtml(l.title)}</h3>
-      <p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
     
-    // Show item type description if available
+    // Title with Element icon next to it
+    let titleHtml = `<div class="title-row"><h3 class="listing-title" data-id="${l.id}">${escapeHtml(l.title)}</h3>`;
+    if(l.element){
+      const elementClass = `element-${l.element.toLowerCase()}`;
+      titleHtml += `<img class="element-icon-title ${elementClass}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" title="${escapeHtml(l.element)} Element" loading="lazy"/>`;
+    }
+    titleHtml += `</div>`;
+    
+    let html = titleHtml + `<p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
+    
+    // Show item type description if available (Info comes first)
     if(itemType){
-      html += `<p class="hint"><strong>Info:</strong> ${escapeHtml(itemType.description)}</p>`;
+      html += `<p class="hint no-gap"><strong>Info:</strong></p><p class="hint no-gap">${escapeHtml(itemType.description)}</p>`;
     }
     
-    // Show listing-specific description if any
+    // Show listing-specific description if any (Seller's Notes with content below, no gap)
     if(l.desc){
-      html += `<p><strong>Seller's Notes:</strong> ${colorizeStats(escapeHtml(l.desc))}</p>`;
+      html += `<p class="no-gap"><strong>Seller's Notes:</strong></p><p class="no-gap">${colorizeStats(escapeHtml(l.desc))}</p>`;
     }
     
-    // Price row with item type image next to gold amount
+    // Price row with item type image on far left, gold amount on far right
     html += `<div class="price-row">`;
-    html += `<div class="price-group">`;
     if(itemType && itemType.image){
-      html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}"/>`;
+      html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}" loading="lazy"/>`;
     }
-    html += `<img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
+    html += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
+
+    // Separator above image area
+    html += `<div class="section-separator"></div>`;
     
-    // User-uploaded image (centered below gold amount)
+    // User-uploaded image (centered below gold amount) or placeholder
     if(l.image){
-      html += `<div class="image-container"><img class="user-uploaded-image" src="${l.image}" alt="${escapeHtml(l.title)}"/></div>`;
+      html += `<div class="image-container"><img class="user-uploaded-image" src="${l.image}" alt="${escapeHtml(l.title)}" loading="lazy"/></div>`;
+    } else {
+      html += `<div class="image-container no-image"><span>No User Screenshot</span></div>`;
     }
     
     contentDiv.innerHTML = html;
@@ -424,54 +601,50 @@ async function renderListings(){
     const timeEl = document.createElement('p'); timeEl.className='listing-time'; timeEl.title=fullDate; timeEl.textContent=timeAgo(l.createdAt);
     footerDiv.appendChild(timeEl);
     
-    // seller controls - check admin status asynchronously
-    (async () => {
-      const isAdmin = await isAdminUser();
-      let isOwner = false;
-      
-      if(currentUser()) {
-        if(API_CONFIG.USE_API) {
-          // In API mode, compare user IDs
-          const me = await ApiService.getMe();
-          if(me) {
-            // Ensure both are strings and trim any whitespace
-            const myId = String(me.id).trim();
-            const sellerId = String(l.seller).trim();
-            isOwner = myId === sellerId;
-            console.log('🔍 Ownership check:', {
-              listing: l.title,
-              myId: myId,
-              sellerId: sellerId,
-              match: myId === sellerId,
-              isOwner: isOwner,
-              isAdmin: isAdmin,
-              willShowControls: isOwner || isAdmin
-            });
-          } else {
-            console.warn('⚠️ Could not fetch current user info from API');
-          }
-        } else {
-          // In localStorage mode, compare emails
-          isOwner = currentUser() === l.seller;
+    // Determine ownership synchronously using pre-fetched data
+    let isOwner = false;
+    
+    if(currentUser()) {
+      if(API_CONFIG.USE_API) {
+        // Compare with pre-fetched user ID
+        if(currentUserId) {
+          const sellerId = String(l.seller).trim();
+          isOwner = currentUserId === sellerId;
         }
+      } else {
+        // In localStorage mode, compare emails
+        isOwner = currentUser() === l.seller;
       }
-      
-      if(isOwner || isAdmin){
-        const controls = document.createElement('div'); controls.className='controls';
-        const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
-        const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
-        btnEdit.addEventListener('click', ()=> startEditListing(l.id));
-        btnDel.addEventListener('click', async ()=> {
-          const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
-          showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
-        });
-        controls.appendChild(btnEdit); controls.appendChild(btnDel);
-        footerDiv.appendChild(controls);
-      }
-    })();
+    }
+    
+    // Add controls immediately if user is owner or admin
+    if(isOwner || isAdmin){
+      const controls = document.createElement('div'); controls.className='controls';
+      const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
+      const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
+      btnEdit.addEventListener('click', async ()=> await startEditListing(l.id));
+      btnDel.addEventListener('click', async ()=> {
+        const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
+        showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
+      });
+      controls.appendChild(btnEdit); controls.appendChild(btnDel);
+      footerDiv.appendChild(controls);
+    }
     
     el.appendChild(footerDiv);
     container.appendChild(el);
+  });
+
+  // Attach click listeners to entire listing cards for detail modal (faster UX)
+  container.querySelectorAll('.listing').forEach(card => {
+    const id = card.getAttribute('data-id') || (card.querySelector('.listing-title') && card.querySelector('.listing-title').getAttribute('data-id'));
+    if(!id) return;
+    card.addEventListener('click', (e) => {
+      // Ignore if double-clicking on image (image has its own modal), buttons, or links
+      if(e.target.classList && e.target.classList.contains('user-uploaded-image')) return;
+      if(e.target.closest && (e.target.closest('.controls') || e.target.closest('button') || e.target.closest('a'))) return;
+      openListingDetail(id);
+    });
   });
   } catch(error) {
     console.error('Error rendering listings:', error);
@@ -591,8 +764,13 @@ async function processImageFile(file, maxBytes=200*1024, maxDim=1200){
 }
 
 // Edit flow
-function startEditListing(id){
-  const listings = getListings();
+async function startEditListing(id){
+  let listings;
+  if(API_CONFIG.USE_API) {
+    listings = await ApiService.getListings();
+  } else {
+    listings = getListings();
+  }
   const l = listings.find(x=>x.id===id); if(!l) return alert('Listing not found');
   
   qs('#item-title').value = l.title;
@@ -609,7 +787,12 @@ function startEditListing(id){
   }
   
   qs('#item-desc').value = l.desc || '';
-  qs('#item-price').value = Number(l.price)||0; 
+  qs('#item-price').value = Number(l.price)||0;
+  
+  // Load Elite and Element statuses
+  qs('#item-elite').checked = !!l.elite;
+  qs('#item-element').value = l.element || '';
+  
   qs('#editing-id').value = l.id;
   if(l.image){ qs('#item-image-preview').src = l.image; qs('#item-image-preview').classList.remove('hidden'); }
   
@@ -780,11 +963,12 @@ function setup(){
   }
   const adminSearch = qs('#admin-search');
   if(adminSearch){
-    adminSearch.addEventListener('input', ()=>{
+    const debouncedAdminSearch = debounce(()=>{
       adminView.search = adminSearch.value || '';
       adminView.page = 1;
       renderAdminUsers(adminView.mode);
-    });
+    }, 300);
+    adminSearch.addEventListener('input', debouncedAdminSearch);
   }
   const pagPrev = qs('#admin-prev');
   if(pagPrev){ pagPrev.addEventListener('click', ()=>{ if(adminView.page > 1){ adminView.page--; renderAdminUsers(adminView.mode); } }); }
@@ -884,24 +1068,34 @@ function setup(){
 
   // Items sold history
   const btnItemsSold = qs('#btn-items-sold');
-  if(btnItemsSold){ btnItemsSold.addEventListener('click', ()=>{ hideEl(qs('#hamburger-menu')); openItemsSoldHistory(); }); }
+  if(btnItemsSold){ btnItemsSold.addEventListener('click', async ()=>{ hideEl(qs('#hamburger-menu')); await openItemsSoldHistory(); }); }
   const btnItemsSoldClose = qs('#items-sold-close');
   if(btnItemsSoldClose){ btnItemsSoldClose.addEventListener('click', ()=> hideEl(qs('#items-sold-modal'))); }
   const itemsSoldPrev = qs('#items-sold-prev');
-  if(itemsSoldPrev){ itemsSoldPrev.addEventListener('click', ()=>{ 
+  if(itemsSoldPrev){ itemsSoldPrev.addEventListener('click', async ()=>{ 
     if(itemsSoldView.page > 1){ 
       itemsSoldView.page--; 
-      const u = currentUser(); 
-      const history = loadJSON(LS_ITEMS_SOLD, {}); 
-      renderItemsSoldPage(history[u] || []); 
+      const u = currentUser();
+      if(API_CONFIG.USE_API) {
+        const history = await ApiService.getItemsSoldHistory();
+        renderItemsSoldPage(history);
+      } else {
+        const history = loadJSON(LS_ITEMS_SOLD, {}); 
+        renderItemsSoldPage(history[u] || []);
+      }
     } 
   }); }
   const itemsSoldNext = qs('#items-sold-next');
-  if(itemsSoldNext){ itemsSoldNext.addEventListener('click', ()=>{ 
+  if(itemsSoldNext){ itemsSoldNext.addEventListener('click', async ()=>{ 
     itemsSoldView.page++; 
-    const u = currentUser(); 
-    const history = loadJSON(LS_ITEMS_SOLD, {}); 
-    renderItemsSoldPage(history[u] || []); 
+    const u = currentUser();
+    if(API_CONFIG.USE_API) {
+      const history = await ApiService.getItemsSoldHistory();
+      renderItemsSoldPage(history);
+    } else {
+      const history = loadJSON(LS_ITEMS_SOLD, {}); 
+      renderItemsSoldPage(history[u] || []);
+    }
   }); }
 
   // Mod history
@@ -977,13 +1171,20 @@ function setup(){
   const clearChip = qs('#clear-seller-filter');
   if(clearChip){ clearChip.addEventListener('click', ()=>{ currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
 
-  // Search and filter event listeners
+  // Search and filter event listeners with debouncing for better performance
+  const debouncedApplyFilters = debounce(applyFilters, 300);
+  
   qs('#search-button').addEventListener('click', applyFilters);
   qs('#search-name').addEventListener('keypress', (e) => {
     if(e.key === 'Enter') applyFilters();
   });
+  // Debounce search input for real-time filtering
+  qs('#search-name').addEventListener('input', debouncedApplyFilters);
+  
   qs('#search-price').addEventListener('change', applyFilters);
   qs('#search-sort').addEventListener('change', applyFilters);
+  qs('#search-elite').addEventListener('change', applyFilters);
+  qs('#search-element').addEventListener('change', applyFilters);
   qs('#search-reset').addEventListener('click', resetFilters);
 
   // Price spinner controls
@@ -1242,9 +1443,15 @@ function setup(){
   // delegate clicks on seller links
   document.body.addEventListener('click', async (ev)=>{
     const a = ev.target.closest && ev.target.closest('.seller-link');
-    if(a){ ev.preventDefault(); const uname = a.getAttribute('data-user'); await openUserPopup(uname); }
-    
-    // Copy discord name when clicked
+    if(a){ 
+      ev.preventDefault(); 
+      const userIdentifier = a.getAttribute('data-user');
+      await openUserPopup(userIdentifier); 
+    }
+  });
+  
+  // Copy discord name when double-clicked
+  document.body.addEventListener('dblclick', async (ev)=>{
     if(ev.target.id === 'popup-discord'){
       const discord = ev.target.dataset.discord;
       if(discord){
@@ -1257,9 +1464,11 @@ function setup(){
     }
   });
 
-  // Double click on user uploaded images to open in modal
+  // Double click handlers for images and Discord
   document.body.addEventListener('dblclick', (ev)=>{
+    // Double click on user uploaded images to open in modal
     if(ev.target.classList.contains('user-uploaded-image')){
+      ev.stopPropagation();
       const modal = qs('#image-modal');
       const modalImg = qs('#modal-image');
       modalImg.src = ev.target.src;
@@ -1273,6 +1482,36 @@ function setup(){
     const modal = qs('#image-modal');
     modal.classList.remove('show');
     modal.classList.add('hidden');
+  });
+
+  // Global key navigation & ESC close
+  document.addEventListener('keydown', (e)=>{
+    const detailVisible = !qs('#listing-detail-modal').classList.contains('hidden');
+    if(e.key === 'Escape'){
+      if(detailVisible) hideEl(qs('#listing-detail-modal'));
+      const imgModal = qs('#image-modal');
+      if(imgModal.classList.contains('show')){
+        imgModal.classList.remove('show'); imgModal.classList.add('hidden');
+      }
+    }
+    if(detailVisible && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')){
+      if(currentRenderedListingIds.length < 2) return;
+      if(currentDetailIndex < 0) return;
+      if(e.key === 'ArrowRight') currentDetailIndex = (currentDetailIndex + 1) % currentRenderedListingIds.length;
+      else currentDetailIndex = (currentDetailIndex - 1 + currentRenderedListingIds.length) % currentRenderedListingIds.length;
+      openListingDetail(currentRenderedListingIds[currentDetailIndex]);
+    }
+  });
+
+  // Close hamburger when clicking outside
+  document.addEventListener('click', (e)=>{
+    const menu = qs('#hamburger-menu');
+    const trigger = qs('#btn-hamburger');
+    if(menu && !menu.classList.contains('hidden')){
+      if(!menu.contains(e.target) && e.target !== trigger){
+        menu.classList.add('hidden');
+      }
+    }
   });
 
   // Close modal on background click
@@ -1316,6 +1555,8 @@ function setup(){
 
   qs('#btn-create-listing').addEventListener('click', async ()=>{
     const t = qs('#item-title').value.trim(); const d = qs('#item-desc').value.trim(); const p = qs('#item-price').value;
+    const elite = qs('#item-elite').checked;
+    const element = qs('#item-element').value || null;
     if(!t) return showMessage('Title required', 'error');
     if(!currentUser()) return showMessage('You must be logged in', 'error');
     if(!p || Number(p) < 1) return showMessage('Price must be at least 1 gold', 'error');
@@ -1338,7 +1579,7 @@ function setup(){
     }
 
     if(editingId){
-      const updateData = { title: t, desc: d, price: Number(p)||0 };
+      const updateData = { title: t, desc: d, price: Number(p)||0, elite, element };
       if(img) updateData.image = img;
       const res = await updateListing(editingId, updateData);
       if(!res.ok) return showMessage(res.msg, 'error');
@@ -1347,11 +1588,12 @@ function setup(){
       return showMessage('Listing updated', 'info');
     }
 
-    const res = await createListing(t,d,p,selectedItemTypeId);
+    const res = await createListing(t,d,p,selectedItemTypeId,elite,element);
     if(!res.ok) return showMessage(res.msg, 'error');
     // attach image after creation (so we can preserve createdAt and id ordering)
     if(img){ await updateListing(res.listing.id, {image: img}); }
     qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden'); qs('#item-image-preview').src='';
+    qs('#item-elite').checked = false; qs('#item-element').value = '';
     qs('#selected-item-info').textContent = '';
     selectedItemTypeId = null;
       await renderListings();
@@ -1375,6 +1617,7 @@ function setup(){
 function finishEditUI(){
   qs('#editing-id').value = '';
   qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden'); qs('#item-image-preview').src='';
+  qs('#item-elite').checked = false; qs('#item-element').value = '';
   qs('#selected-item-info').textContent = '';
   selectedItemTypeId = null;
   qs('#btn-create-listing').textContent = 'Create listing'; qs('#btn-cancel-edit').classList.add('hidden');
@@ -1415,7 +1658,7 @@ async function openUserPopup(username){
   let u;
   
   if(API_CONFIG.USE_API) {
-    // Fetch user profile from API
+    // Fetch user profile from API (supports both UUID and email)
     u = await ApiService.getUserProfile(username);
     if(!u) {
       return showMessage('User profile not available', 'error');
@@ -1443,21 +1686,17 @@ async function openUserPopup(username){
     popupDiscordEl.style.display = 'block';
     popupDiscordEl.style.cursor = 'pointer';
     popupDiscordEl.title = 'Double-click to copy Discord name';
-    popupDiscordEl.ondblclick = ()=>{
-      navigator.clipboard.writeText(u.discord).then(()=>{
-        showMessage('Discord name copied to clipboard', 'info', 2000);
-      }).catch(()=>{
-        showMessage('Failed to copy Discord name', 'error');
-      });
-    };
+    popupDiscordEl.dataset.discord = u.discord;
   } else {
     popupDiscordEl.textContent = '';
     popupDiscordEl.style.display = 'none';
-    popupDiscordEl.ondblclick = null;
+    delete popupDiscordEl.dataset.discord;
   }
   const sellBtn = qs('#popup-selling');
   if(sellBtn){
-    sellBtn.dataset.username = API_CONFIG.USE_API && u.id ? u.id : username;
+    // Store the correct identifier: UUID for API mode, email for localStorage
+    const userId = API_CONFIG.USE_API && u.id ? u.id : username;
+    sellBtn.dataset.username = userId;
     sellBtn.dataset.displayname = u.displayName || username;
   }
   const itemsSoldBtn = qs('#popup-items-sold');
@@ -1816,23 +2055,29 @@ async function handleAdminAction(action, username, mode){
 }
 
 // Items Sold History
-function openItemsSoldHistory(){
-  if(API_CONFIG.USE_API) {
-    return showMessage('Items Sold History is not yet available in API mode', 'info');
-  }
+async function openItemsSoldHistory(){
   const u = currentUser(); if(!u) return;
-  openItemsSoldHistoryForUser(u);
+  await openItemsSoldHistoryForUser(u);
 }
 
-function openItemsSoldHistoryForUser(username){
+async function openItemsSoldHistoryForUser(username){
+  let userHistory = [];
+  let displayName = username;
+  
   if(API_CONFIG.USE_API) {
-    return showMessage('Items Sold History is not yet available in API mode', 'info');
+    // Use API to get items sold history
+    userHistory = await ApiService.getItemsSoldHistory();
+    const me = await ApiService.getMe();
+    if(me) displayName = me.displayName || me.email;
+  } else {
+    // Use localStorage
+    const history = loadJSON(LS_ITEMS_SOLD, {});
+    userHistory = history[username] || [];
+    const targetUser = getUser(username);
+    displayName = targetUser ? (targetUser.displayName || username) : username;
   }
-  const history = loadJSON(LS_ITEMS_SOLD, {});
-  const userHistory = history[username] || [];
+  
   itemsSoldView.page = 1;
-  const targetUser = getUser(username);
-  const displayName = targetUser ? (targetUser.displayName || username) : username;
   qs('#items-sold-title').textContent = `Items Sold History - ${displayName}`;
   renderItemsSoldPage(userHistory);
   showFlex(qs('#items-sold-modal'));
@@ -1856,9 +2101,24 @@ function renderItemsSoldPage(userHistory){
       const createdDate = new Date(item.createdAt).toLocaleString();
       const deletedTag = item.deletedAt ? `<span style="color:var(--accent);font-weight:600"> [DELETED]</span>` : '';
       const description = item.desc ? `<p class="hint" style="margin-top:.35rem">${escapeHtml(item.desc)}</p>` : '';
+      
+      // Elite and Element badges
+      let statusBadges = '';
+      if(item.elite || item.element){
+        statusBadges = '<div style="display:flex;gap:.35rem;margin-top:.25rem">';
+        if(item.elite){
+          statusBadges += '<img src="Items/Elite/Elite.png" alt="Elite" title="Elite Item" style="width:20px;height:20px;object-fit:contain"/>';
+        }
+        if(item.element){
+          statusBadges += `<img src="Items/Enchants/${escapeHtml(item.element)}.png" alt="${escapeHtml(item.element)}" title="${escapeHtml(item.element)} Element" style="width:20px;height:20px;object-fit:contain"/>`;
+        }
+        statusBadges += '</div>';
+      }
+      
       html += `<div class="history-item">
         <strong>${escapeHtml(item.title)}</strong>${deletedTag}
         ${description}
+        ${statusBadges}
         <p class="hint">Price: ${item.price} gold | Listed: ${createdDate}</p>
         ${item.deletedAt ? `<p class="hint">Deleted: ${new Date(item.deletedAt).toLocaleString()}</p>` : ''}
       </div>`;
@@ -1908,9 +2168,63 @@ function showConfirmModal(message, onConfirm){
   showFlex(qs('#confirm-modal'));
 }
 
+// API Connection Status
+async function updateApiStatus() {
+  const statusEl = qs('#api-status');
+  const dotEl = qs('.api-status-dot');
+  const textEl = qs('.api-status-text');
+  
+  if (!statusEl || !dotEl || !textEl) return;
+  
+  // Set checking state
+  statusEl.className = 'api-status checking';
+  textEl.textContent = 'Checking...';
+  
+  try {
+    const status = await ApiService.checkConnection();
+    
+    if (status.connected) {
+      statusEl.className = 'api-status connected';
+      textEl.textContent = status.mode === 'localStorage' ? 'Local Mode' : 'API Connected';
+      statusEl.title = status.mode === 'localStorage' 
+        ? 'Using localStorage (offline mode)' 
+        : 'API connection is active';
+    } else {
+      statusEl.className = 'api-status disconnected';
+      textEl.textContent = 'API Offline';
+      statusEl.title = `API not reachable: ${status.error || 'Unknown error'}`;
+    }
+  } catch (e) {
+    statusEl.className = 'api-status disconnected';
+    textEl.textContent = 'Check Failed';
+    statusEl.title = `Error checking API: ${e.message}`;
+  }
+}
+
+function startApiStatusMonitoring() {
+  // Initial check
+  updateApiStatus();
+  
+  // Check every 30 seconds
+  if (apiStatusCheckInterval) {
+    clearInterval(apiStatusCheckInterval);
+  }
+  apiStatusCheckInterval = setInterval(updateApiStatus, 30000);
+}
+
+function stopApiStatusMonitoring() {
+  if (apiStatusCheckInterval) {
+    clearInterval(apiStatusCheckInterval);
+    apiStatusCheckInterval = null;
+  }
+}
+
 // On load
 window.addEventListener('DOMContentLoaded', async () => {
   setup();
+  
+  // Start API status monitoring
+  startApiStatusMonitoring();
   
   // Hide loading screen after everything is set up
   setTimeout(() => {
@@ -1922,5 +2236,5 @@ window.addEventListener('DOMContentLoaded', async () => {
         loadingScreen.remove();
       }, 300);
     }
-  }, 500); // Small delay to ensure everything is ready
+  }, 100); // Minimal delay for faster perceived performance
 });

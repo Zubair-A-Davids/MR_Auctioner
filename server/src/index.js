@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import authRoutes from './auth.routes.js';
 import itemRoutes from './items.routes.js';
@@ -8,6 +9,9 @@ import { query } from './db.js';
 dotenv.config();
 
 const app = express();
+
+// Enable gzip compression for all responses
+app.use(compression());
 
 const allowed = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
