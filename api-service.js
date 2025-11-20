@@ -58,12 +58,20 @@ const ApiService = {
     }
 
     try {
+      console.log('Registering user:', { email: username, displayName });
       const data = await this.apiRequest('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ email: username, password, displayName })
       });
+      console.log('Registration successful, received token');
+      // Automatically set the token after registration
+      if (data.token) {
+        this.setToken(data.token);
+        localStorage.setItem(LS_CURRENT, username);
+      }
       return { ok: true, token: data.token };
     } catch (e) {
+      console.error('Registration error:', e);
       return { ok: false, msg: e.message };
     }
   },
@@ -137,24 +145,27 @@ const ApiService = {
       if (!u) return { ok: false, msg: 'Not signed in' };
       const users = loadJSON(LS_USERS, {});
       if (!users[u]) {
-        users[u] = { password: '', displayName: displayName || u, bio, avatar, discord, isAdmin: false, isMod: false, bannedUntil: null, bannedReason: '' };
+        users[u] = { password: '', displayName: displayName || u, bio: bio || '', avatar: avatar || '', discord: discord || '', isAdmin: false, isMod: false, bannedUntil: null, bannedReason: '' };
       } else {
         users[u].displayName = displayName || users[u].displayName || u;
-        users[u].discord = discord;
-        users[u].bio = bio;
-        users[u].avatar = avatar;
+        users[u].discord = discord || '';
+        users[u].bio = bio || '';
+        users[u].avatar = avatar || '';
       }
       saveJSON(LS_USERS, users);
       return { ok: true };
     }
 
     try {
-      await this.apiRequest('/auth/profile', {
+      console.log('Sending profile update:', { displayName, discord, bio, avatarLength: avatar ? avatar.length : 0 });
+      const response = await this.apiRequest('/auth/profile', {
         method: 'PUT',
         body: JSON.stringify({ displayName, discord, bio, avatar })
       });
+      console.log('Profile update response:', response);
       return { ok: true };
     } catch (e) {
+      console.error('Profile update error:', e);
       return { ok: false, msg: e.message };
     }
   },

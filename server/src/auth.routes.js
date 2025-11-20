@@ -112,14 +112,16 @@ router.get('/users/by-email/:email/profile', async (req, res) => {
 
 router.put('/profile', requireAuth, async (req, res) => {
   const { displayName, discord, bio, avatar } = req.body || {};
+  console.log('Profile update request:', { userId: req.user.id, displayName, discord, bio, avatarLength: avatar ? avatar.length : 0 });
   try {
-    await query(
+    const result = await query(
       'UPDATE users SET display_name = $1, discord = $2, bio = $3, avatar = $4 WHERE id = $5',
       [displayName || null, discord || null, bio || null, avatar || null, req.user.id]
     );
+    console.log('Profile update result:', { rowCount: result.rowCount, userId: req.user.id });
     return res.json({ success: true });
   } catch (e) {
-    console.error(e);
+    console.error('Profile update error:', e);
     return res.status(500).json({ error: 'Server error' });
   }
 });

@@ -1489,21 +1489,23 @@ function setup(){
     const u = qs('#reg-username').value.trim(); const p = qs('#reg-password').value; const d = qs('#reg-displayname').value.trim();
     if(u.length < 3) return showMessage('Username must be at least 3 characters', 'error');
     if(p.length < 4) return showMessage('Password must be at least 4 characters', 'error');
-    const res = await ApiService.register(u,p,d);
+    
+    console.log('Starting registration for:', u);
+    const res = await ApiService.register(u, p, d);
     if(!res.ok) return showMessage(res.msg, 'error');
     
-    // Auto-login after successful registration
-    const loginRes = await ApiService.login(u, p);
-    if(loginRes.ok) {
-      showMessage('Account created and logged in successfully!', 'success');
-      qs('#register-card').classList.add('hidden');
-      qs('#reg-username').value=''; qs('#reg-password').value=''; qs('#reg-displayname').value='';
-      await updateAuthUI();
-    } else {
-      showMessage('Account created — you can now login', 'info');
-      qs('#register-card').classList.add('hidden');
-      qs('#reg-username').value=''; qs('#reg-password').value=''; qs('#reg-displayname').value='';
-    }
+    console.log('Registration successful, token received:', !!res.token);
+    
+    // Clear the form
+    qs('#register-card').classList.add('hidden');
+    qs('#reg-username').value=''; 
+    qs('#reg-password').value=''; 
+    qs('#reg-displayname').value='';
+    
+    // Update UI (user is already logged in after registration in API mode)
+    showMessage('Account created successfully! Welcome to MR Auctioner!', 'success');
+    await renderUserState();
+    await renderListings();
   });
 
   // cancel buttons for auth cards
