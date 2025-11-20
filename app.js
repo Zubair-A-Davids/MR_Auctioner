@@ -47,115 +47,96 @@ function debounce(func, wait) {
     timeout = setTimeout(later, wait);
   };
 }
-// Open enlarged listing detail modal
+// Open enlarged listing detail modal (repaired)
 async function openListingDetail(id){
-  // Use cached listings if available to avoid extra network round trip
-  let listings = cachedListings;
-  if(!listings || listings.length === 0){
-    if(API_CONFIG.USE_API){
-      listings = await ApiService.getListings();
-      cachedListings = listings;
-    } else {
-      listings = getListings();
-      cachedListings = listings;
-    }
-  }
-  const l = listings.find(x => String(x.id) === String(id));
-  if(!l){ return showMessage('Listing not found','error'); }
-
-  const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
-  // In API mode we already have sellerName on listing; skip getUser lookup for performance
-  let sellerDisplay = l.sellerName || l.seller || 'unknown';
-  if(!API_CONFIG.USE_API){
-    const sellerProfile = getUser(l.seller) || {};
-    sellerDisplay = sellerProfile.displayName || sellerDisplay;
-  }
-
-  const titleEl = qs('#listing-detail-title');
-  const metaEl = qs('#listing-detail-meta');
-  const infoEl = qs('#listing-detail-info');
-  const notesEl = qs('#listing-detail-notes');
-  const imgWrap = qs('#listing-detail-image');
-
-  // Title with icons
-  let titleHtml = `${escapeHtml(l.title)}`;
-  if(l.element){
-    titleHtml += ` <img class="element-icon-title element-${l.element.toLowerCase()}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" style="width:32px;height:32px">`;
-  }
-  if(l.elite){
-    titleHtml += ` <img src="Items/Elite/Elite.png" alt="Elite" style="width:28px;height:28px;vertical-align:middle">`;
-  }
-  titleEl.innerHTML = titleHtml;
-
-  // Meta (seller + price + time)
-  metaEl.innerHTML = `<strong>Seller:</strong> <span style="color:var(--accent)">${escapeHtml(sellerDisplay)}</span> · <strong>Price:</strong> ${Number(l.price)||0} gold`;
-
-  // Info
-  if(itemType){
-    infoEl.innerHTML = `<strong>Info:</strong> ${escapeHtml(itemType.description)}`;
-  } else { infoEl.innerHTML = ''; }
-
-  // Seller notes
-  if(l.desc){
-    notesEl.innerHTML = `<strong>Seller's Notes:</strong><div style="margin-top:.25rem">${colorizeStats(escapeHtml(l.desc))}</div>`;
-  } else { notesEl.innerHTML = ''; }
-
-  // Image or placeholder with listed overlay (bottom separator handled by static markup)
-  const listedText = daysAgoText(l.createdAt);
-  if(l.image){
-    imgWrap.classList.remove('no-image');
-    imgWrap.classList.add('shimmer');
-    imgWrap.innerHTML = `
-      <img id="listing-detail-img" data-src="${l.image}" alt="${escapeHtml(l.title)}" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px" loading="lazy" decoding="async" fetchpriority="high"/>
-      <div class="listed-overlay">Listed: ${listedText}</div>
-    `;
-    // Lazy assign image src once modal is visible
-    requestAnimationFrame(() => {
-      const img = qs('#listing-detail-img');
-      if(img && img.getAttribute('data-src')){
-        img.src = img.getAttribute('data-src');
-        img.removeAttribute('data-src');
-        img.onclick = () => {
-          const modal = qs('#image-modal');
-          const modalImg = qs('#modal-image');
-          modalImg.src = img.src;
-          modal.classList.remove('hidden');
-          modal.classList.add('show');
-        };
-        img.addEventListener('load', ()=>{ imgWrap.classList.remove('shimmer'); });
+  try {
+    // Use cached listings if available to avoid extra network round trip
+    let listings = cachedListings;
+    if(!listings || listings.length === 0){
+      if(API_CONFIG.USE_API){
+        listings = await ApiService.getListings();
+        cachedListings = listings;
+      } else {
+        listings = getListings();
+        cachedListings = listings;
       }
-    });
-  } else {
-    imgWrap.classList.add('no-image');
-    imgWrap.classList.add('shimmer');
-    imgWrap.innerHTML = `
-      <span>No User Screenshot</span>
-      <div class="listed-overlay">Listed: ${listedText}</div>
-    `;
+    }
+    const l = listings.find(x => String(x.id) === String(id));
+    if(!l){ return showMessage('Listing not found','error'); }
+
+    const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
+    let sellerDisplay = l.sellerName || l.seller || 'unknown';
+    if(!API_CONFIG.USE_API){
+      const sellerProfile = getUser(l.seller) || {};
+      sellerDisplay = sellerProfile.displayName || sellerDisplay;
+    }
+
+    const titleEl = qs('#listing-detail-title');
+    const metaEl = qs('#listing-detail-meta');
+    const infoEl = qs('#listing-detail-info');
+    const notesEl = qs('#listing-detail-notes');
+    const imgWrap = qs('#listing-detail-image');
+
+    // Title with icons
+    let titleHtml = `${escapeHtml(l.title)}`;
+    if(l.element){
+      titleHtml += ` <img class="element-icon-title element-${l.element.toLowerCase()}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" style="width:32px;height:32px">`;
+    }
+    if(l.elite){
+      titleHtml += ` <img src="Items/Elite/Elite.png" alt="Elite" style="width:28px;height:28px;vertical-align:middle">`;
+    }
+    titleEl.innerHTML = titleHtml;
+
+    // Meta
+    metaEl.innerHTML = `<strong>Seller:</strong> <span style="color:var(--accent)">${escapeHtml(sellerDisplay)}</span> · <strong>Price:</strong> ${Number(l.price)||0} gold`;
+
+    // Info
+    if(itemType){
+      infoEl.innerHTML = `<strong>Info:</strong> ${escapeHtml(itemType.description)}`;
+    } else { infoEl.innerHTML = ''; }
+
+    // Notes
+    if(l.desc){
+      notesEl.innerHTML = `<strong>Seller's Notes:</strong><div style="margin-top:.25rem">${colorizeStats(escapeHtml(l.desc))}</div>`;
+    } else { notesEl.innerHTML = ''; }
+
+    // Image
+    const listedText = daysAgoText(l.createdAt);
+    if(l.image){
+      imgWrap.classList.remove('no-image');
+      imgWrap.classList.add('shimmer');
+      imgWrap.innerHTML = `
+        <img id="listing-detail-img" data-src="${l.image}" alt="${escapeHtml(l.title)}" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px" loading="lazy" decoding="async" fetchpriority="high"/>
+        <div class="listed-overlay">Listed: ${listedText}</div>
+      `;
+      requestAnimationFrame(() => {
+        const img = qs('#listing-detail-img');
+        if(img && img.getAttribute('data-src')){
+          img.src = img.getAttribute('data-src');
+          img.removeAttribute('data-src');
+          img.onclick = () => {
+            const modal = qs('#image-modal');
+            const modalImg = qs('#modal-image');
+            modalImg.src = img.src;
+            modal.classList.remove('hidden');
+            modal.classList.add('show');
+          };
+          img.addEventListener('load', ()=>{ imgWrap.classList.remove('shimmer'); });
+        }
+      });
+    } else {
+      imgWrap.classList.add('no-image');
+      imgWrap.innerHTML = `<span>No User Screenshot</span><div class="listed-overlay">Listed: ${listedText}</div>`;
+    }
+
+    // Show modal
+    requestAnimationFrame(()=> showFlex(qs('#listing-detail-modal')));
+    qs('#listing-detail-close').onclick = () => hideEl(qs('#listing-detail-modal'));
+    currentDetailIndex = currentRenderedListingIds.findIndex(x => String(x) === String(l.id));
+  } catch(err){
+    console.error('openListingDetail error', err);
+    showMessage('Failed to open listing detail','error');
   }
-
-  // Show modal after DOM content prepared to reduce perceived latency
-  requestAnimationFrame(()=> showFlex(qs('#listing-detail-modal')));
-  qs('#listing-detail-close').onclick = () => hideEl(qs('#listing-detail-modal'));
-  // Update current detail index for navigation
-  currentDetailIndex = currentRenderedListingIds.findIndex(x => String(x) === String(l.id));
-}
-
-// UX helpers
-function showMessage(msg, type='info', timeout=4000){
-  const el = qs('#site-message');
-  if(!el) return alert(msg);
-  el.textContent = msg; el.className = 'message ' + (type||'info'); 
-  el.style.display = 'flex';
-  el.style.position = 'fixed';
-  el.style.top = '50%';
-  el.style.left = '50%';
-  el.style.transform = 'translate(-50%, -50%)';
-  el.style.zIndex = '10000';
-  el.style.maxWidth = '90vw';
-  el.style.width = 'auto';
-  el.style.margin = '0';
-  if(timeout && timeout>0){ setTimeout(()=>{ el.style.display='none'; }, timeout); }
 }
 
 function timeAgo(iso){
@@ -650,7 +631,7 @@ async function renderAllListings(listings, container) {
 
 function renderSingleListing(l, container, isAdmin, currentUserId) {
   currentRenderedListingIds.push(String(l.id));
-  const el = document.createElement('div'); el.className='listing card';
+  const el = document.createElement('div'); el.className='listing card'; el.setAttribute('data-id', String(l.id));
   const fullDate = new Date(l.createdAt).toLocaleString();
   const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
   
@@ -665,19 +646,25 @@ function renderSingleListing(l, container, isAdmin, currentUserId) {
     eliteBadge.decoding = 'async';
     el.appendChild(eliteBadge);
   }
+  // Element badge in top-right corner
+  if(l.element){
+    const elementBadge = document.createElement('img');
+    elementBadge.className = 'element-badge-corner';
+    elementBadge.src = `Items/Enchants/${escapeHtml(l.element)}.png`;
+    elementBadge.alt = escapeHtml(l.element);
+    elementBadge.title = `${escapeHtml(l.element)} Element`;
+    elementBadge.loading = 'lazy';
+    elementBadge.decoding = 'async';
+    el.appendChild(elementBadge);
+  }
   
   // Content area
   const contentDiv = document.createElement('div'); contentDiv.className='listing-content';
   const sellerProfile = getUser(l.seller) || {};
   const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
   
-  // Title with Element icon next to it
-  let titleHtml = `<div class="title-row"><h3 class="listing-title" data-id="${l.id}">${escapeHtml(l.title)}</h3>`;
-  if(l.element){
-    const elementClass = `element-${l.element.toLowerCase()}`;
-    titleHtml += `<img class="element-icon-title ${elementClass}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" title="${escapeHtml(l.element)} Element" loading="lazy" decoding="async"/>`;
-  }
-  titleHtml += `</div>`;
+  // Title only (element icon moved to top-right badge)
+  let titleHtml = `<div class=\"title-row\"><h3 class=\"listing-title\" data-id=\"${l.id}\">${escapeHtml(l.title)}</h3></div>`;
   
   let html = titleHtml + `<p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
   
@@ -737,8 +724,9 @@ function renderSingleListing(l, container, isAdmin, currentUserId) {
     const controls = document.createElement('div'); controls.className='controls';
     const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent'; btnEdit.type='button';
     const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete'; btnDel.type='button';
-    btnEdit.addEventListener('click', async ()=> await startEditListing(l.id));
-    btnDel.addEventListener('click', async ()=> {
+    btnEdit.addEventListener('click', async (e)=> { e.stopPropagation(); await startEditListing(l.id); });
+    btnDel.addEventListener('click', async (e)=> {
+      e.stopPropagation();
       const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
       showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
     });
@@ -753,17 +741,15 @@ function renderSingleListing(l, container, isAdmin, currentUserId) {
 function attachListingClickListeners(container) {
   // Attach click listeners to entire listing cards for detail modal (faster UX)
   container.querySelectorAll('.listing').forEach(card => {
+    if(card.dataset.bound === '1') return; // prevent duplicate binding
     const id = card.getAttribute('data-id') || (card.querySelector('.listing-title') && card.querySelector('.listing-title').getAttribute('data-id'));
     if(!id) return;
-    // Remove existing listener to avoid duplicates
-    const newCard = card.cloneNode(true);
-    card.parentNode.replaceChild(newCard, card);
-    newCard.addEventListener('click', (e) => {
-      // Ignore if double-clicking on image (image has its own modal), buttons, or links
+    card.addEventListener('click', (e) => {
       if(e.target.classList && e.target.classList.contains('user-uploaded-image')) return;
       if(e.target.closest && (e.target.closest('.controls') || e.target.closest('button') || e.target.closest('a'))) return;
       openListingDetail(id);
     });
+    card.dataset.bound = '1';
   });
 }
 
@@ -1700,16 +1686,20 @@ function setup(){
 
     const res = await createListing(t,d,p,selectedItemTypeId,elite,element);
     if(!res.ok) return showMessage(res.msg, 'error');
-    // attach image after creation (so we can preserve createdAt and id ordering)
-    if(img){ await updateListing(res.listing.id, {image: img}); }
+    // attach image after creation asynchronously
+    if(img){ updateListing(res.listing.id, {image: img}).catch(()=>{}); }
+    // Update cache optimistically
+    cachedListings = [res.listing, ...(cachedListings||[])];
+    // Reset form
     qs('#item-title').value=''; qs('#item-type-desc').value=''; qs('#item-desc').value=''; qs('#item-price').value=''; qs('#item-image').value=''; qs('#item-image-preview').classList.add('hidden'); qs('#item-image-preview').src='';
     qs('#item-elite').checked = false; qs('#item-element').value = '';
     qs('#selected-item-info').textContent = '';
     selectedItemTypeId = null;
-      await renderListings();
-      qs('#create-listing-area').classList.add('hidden');
-      qs('#listings-section').classList.remove('hidden');
-      showMessage('Listing created', 'info');
+    // Navigate immediately and render listings
+    qs('#create-listing-area').classList.add('hidden');
+    qs('#listings-section').classList.remove('hidden');
+    requestAnimationFrame(()=> { renderListings(); });
+    showMessage('Listing created', 'info');
   });
 
   qs('#btn-cancel-edit').addEventListener('click', ()=>{ finishEditUI(); qs('#create-listing-area').classList.add('hidden'); qs('#listings-section').classList.remove('hidden'); });
@@ -2376,3 +2366,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }, 100); // Minimal delay for faster perceived performance
 });
+
+// Fallback: ensure loading screen never persists beyond 5s even on errors
+setTimeout(() => {
+  const loadingScreen = document.getElementById('loading-screen');
+  if(loadingScreen) {
+    loadingScreen.remove();
+    console.warn('Loading screen removed by fallback timeout');
+  }
+}, 5000);
