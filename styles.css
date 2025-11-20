@@ -37,7 +37,7 @@ input:disabled,textarea:disabled{background:rgba(255,255,255,0.02);cursor:not-al
 .btn-accent:hover:not(:disabled){background:#ff8533}
 .btn-small{font-size:.9rem;padding:.35rem .5rem}
 .btn-large{font-size:1.05rem;padding:.5rem 1.2rem;font-weight:700}
-#listings{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;transition:opacity 0.2s ease}
+#listings{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;transition:opacity 0.2s ease;max-height:calc(100vh - 350px);overflow-y:auto;overflow-x:hidden;padding-right:8px}
 .listing{background:linear-gradient(135deg,rgba(19,47,76,0.6),rgba(10,25,41,0.8));padding:.75rem;border-radius:8px;border:1px solid var(--border-color);display:flex;flex-direction:column;position:relative;transition:border-color 0.2s;min-height:450px;max-height:550px;overflow:visible}
 .listing:hover{border-color:var(--primary)}
 .listing h3{margin:.25rem 0;color:var(--primary)}
@@ -63,8 +63,10 @@ input:disabled,textarea:disabled{background:rgba(255,255,255,0.02);cursor:not-al
 @keyframes element-pulse-physical{0%,100%{filter:drop-shadow(0 2px 4px rgba(169,169,169,0.6))}50%{filter:drop-shadow(0 2px 8px rgba(169,169,169,0.9))}}
 .item-type-image{width:38px;height:38px;border-radius:6px;object-fit:contain;background:transparent;padding:4px;box-sizing:border-box;cursor:help}
 .item-type-image[title]{position:relative}
-.user-uploaded-image{max-width:85%;height:180px;border-radius:6px;margin:0;object-fit:contain;cursor:pointer}
-.image-container{display:flex;justify-content:center;align-items:center;margin:6px 0;height:180px;min-height:180px;overflow:hidden;text-align:center;position:relative}
+.user-uploaded-image{max-width:85%;height:150px;border-radius:6px;margin:0;object-fit:contain;cursor:pointer}
+.image-container{display:flex;justify-content:center;align-items:center;margin:6px 0;height:150px;min-height:150px;overflow:hidden;text-align:center;position:relative}
+.shimmer{background:linear-gradient(90deg,rgba(30,58,86,0.4) 0%,rgba(60,100,140,0.55) 50%,rgba(30,58,86,0.4) 100%);background-size:200% 100%;animation:shimmerMove 1.2s linear infinite}
+@keyframes shimmerMove{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .listing-footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--accent)}
 .listing-time{font-size:.8rem;color:var(--primary)}
 .hint{font-size:.85rem;color:var(--text-muted);margin-top:.05rem}

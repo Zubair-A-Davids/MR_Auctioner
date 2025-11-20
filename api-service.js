@@ -370,12 +370,20 @@ const ApiService = {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      const response = await fetch(`${API_CONFIG.API_BASE}/health`, {
+      // Try /health first, fallback to /healthz if 404
+      let response = await fetch(`${API_CONFIG.API_BASE}/health`, {
         signal: controller.signal,
         headers: {
           'ngrok-skip-browser-warning': 'true'
         }
       });
+      if(response.status === 404){
+        // Fallback attempt
+        response = await fetch(`${API_CONFIG.API_BASE}/healthz`, {
+          signal: controller.signal,
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+      }
       
       clearTimeout(timeoutId);
       

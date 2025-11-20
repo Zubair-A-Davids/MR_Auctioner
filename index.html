@@ -204,7 +204,7 @@
     <div id="search-filters" class="card search-filters-card">
       <div class="filter-header">
         <h3 style="margin:0;color:var(--primary);font-size:1rem">Search & Filters</h3>
-        <button id="toggle-filters" class="btn btn-small btn-primary" aria-label="Toggle filters">−</button>
+        <button id="toggle-filters" type="button" class="btn btn-small btn-primary" aria-label="Toggle filters">−</button>
       </div>
       <div id="filter-content" class="filter-content">
         <div class="search-grid">
@@ -212,35 +212,35 @@
             <label>Search by Name</label>
             <div style="display: flex; gap: 0.5rem;">
               <input id="search-name" type="text" placeholder="Filter by Item or User name..." style="flex: 1;" />
-              <button id="search-button" class="btn btn-primary" style="min-width: 100px;">Search</button>
+              <button id="search-button" type="button" class="btn btn-primary" style="min-width: 100px;">Search</button>
             </div>
           </div>
           <div class="search-field">
-            <label>Sort by Price</label>
-            <select id="search-price" class="search-select">
+            <label for="search-price">Sort by Price</label>
+            <select id="search-price" class="search-select" aria-label="Sort by Price" title="Sort by Price">
               <option value="none">No Sort</option>
               <option value="low-high">Low to High</option>
               <option value="high-low">High to Low</option>
             </select>
           </div>
           <div class="search-field">
-            <label>Sort by Date</label>
-            <select id="search-sort" class="search-select">
+            <label for="search-sort">Sort by Date</label>
+            <select id="search-sort" class="search-select" aria-label="Sort by Date" title="Sort by Date">
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
             </select>
           </div>
           <div class="search-field">
-            <label>Elite Status</label>
-            <select id="search-elite" class="search-select">
+            <label for="search-elite">Elite Status</label>
+            <select id="search-elite" class="search-select" aria-label="Elite Status Filter" title="Elite Status Filter">
               <option value="all">All Items</option>
               <option value="elite">Elite Only</option>
               <option value="non-elite">Non-Elite Only</option>
             </select>
           </div>
           <div class="search-field">
-            <label>Element</label>
-            <select id="search-element" class="search-select">
+            <label for="search-element">Element</label>
+            <select id="search-element" class="search-select" aria-label="Element Filter" title="Element Filter">
               <option value="all">All Elements</option>
               <option value="energy">Energy</option>
               <option value="fire">Fire</option>
@@ -254,12 +254,12 @@
         </div>
         <div id="seller-filter-chip" class="filter-chip hidden" aria-live="polite">
           <span id="seller-filter-text"></span>
-          <button id="clear-seller-filter" class="chip-clear" title="Clear seller filter" aria-label="Clear seller filter">×</button>
+          <button id="clear-seller-filter" type="button" class="chip-clear" title="Clear seller filter" aria-label="Clear seller filter">×</button>
         </div>
-        <button id="search-reset" class="btn btn-primary full-width">Reset Filters</button>
+        <button id="search-reset" type="button" class="btn btn-primary full-width">Reset Filters</button>
       </div>
     </div>
-    <button id="btn-sell-listings" class="btn btn-primary" style="width:100%;margin-top:.5rem;margin-bottom:1rem">Sell an Item</button>
+    <button id="btn-sell-listings" type="button" class="btn btn-primary" style="width:100%;margin-top:.5rem;margin-bottom:1rem">Sell an Item</button>
     </div>
 
   <div id="listings"></div>
@@ -276,7 +276,7 @@
   <!-- Image Modal -->
   <div id="image-modal" class="modal hidden">
     <div class="image-modal-content">
-      <button id="close-image-modal" class="image-modal-close" aria-label="Close">&times;</button>
+      <button id="close-image-modal" type="button" class="image-modal-close" aria-label="Close">&times;</button>
       <img id="modal-image" src="" alt="Full size image" />
     </div>
   </div>
@@ -296,7 +296,7 @@
       <h2>Select an Item Type</h2>
       <div id="item-type-categories" class="modal-cats"></div>
       <div id="item-type-gallery" class="modal-gallery"></div>
-      <button id="close-item-modal" class="btn btn-accent">Close</button>
+      <button id="close-item-modal" type="button" class="btn btn-accent">Close</button>
     </div>
   </div>
 

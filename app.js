@@ -10,6 +10,15 @@ const LS_MOD_HISTORY = 'mr_modHistory';
 let currentFilters = { name: '', priceSort: 'none', sort: 'newest', seller: '', elite: 'all', element: 'all' };
 let currentRenderedListingIds = [];
 let currentDetailIndex = -1;
+// Cache of last fetched listings to avoid refetching for detail modal
+let cachedListings = [];
+// Virtual scrolling state
+const VIRTUAL_SCROLL_BUFFER = 20;
+const VIRTUAL_SCROLL_THRESHOLD = 500;
+let allListings = [];
+let renderedStartIndex = 0;
+let renderedEndIndex = 0;
+let virtualScrollContainer = null;
 // Admin/Mod panel state
 const adminView = { mode: 'admin', roleFilter: 'all', search: '', page: 1, pageSize: 50 };
 const itemsSoldView = { page: 1, pageSize: 20 };
@@ -40,18 +49,27 @@ function debounce(func, wait) {
 }
 // Open enlarged listing detail modal
 async function openListingDetail(id){
-  let listings;
-  if(API_CONFIG.USE_API){
-    listings = await ApiService.getListings();
-  } else {
-    listings = getListings();
+  // Use cached listings if available to avoid extra network round trip
+  let listings = cachedListings;
+  if(!listings || listings.length === 0){
+    if(API_CONFIG.USE_API){
+      listings = await ApiService.getListings();
+      cachedListings = listings;
+    } else {
+      listings = getListings();
+      cachedListings = listings;
+    }
   }
   const l = listings.find(x => String(x.id) === String(id));
   if(!l){ return showMessage('Listing not found','error'); }
 
   const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
-  const sellerProfile = getUser(l.seller) || {};
-  const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
+  // In API mode we already have sellerName on listing; skip getUser lookup for performance
+  let sellerDisplay = l.sellerName || l.seller || 'unknown';
+  if(!API_CONFIG.USE_API){
+    const sellerProfile = getUser(l.seller) || {};
+    sellerDisplay = sellerProfile.displayName || sellerDisplay;
+  }
 
   const titleEl = qs('#listing-detail-title');
   const metaEl = qs('#listing-detail-meta');
@@ -86,28 +104,38 @@ async function openListingDetail(id){
   const listedText = daysAgoText(l.createdAt);
   if(l.image){
     imgWrap.classList.remove('no-image');
+    imgWrap.classList.add('shimmer');
     imgWrap.innerHTML = `
-      <img id="listing-detail-img" src="${l.image}" alt="${escapeHtml(l.title)}" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px"/>
+      <img id="listing-detail-img" data-src="${l.image}" alt="${escapeHtml(l.title)}" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:6px" loading="lazy" decoding="async" fetchpriority="high"/>
       <div class="listed-overlay">Listed: ${listedText}</div>
     `;
-    // Single click to open full image modal
-    const img = qs('#listing-detail-img');
-    img.onclick = () => {
-      const modal = qs('#image-modal');
-      const modalImg = qs('#modal-image');
-      modalImg.src = img.src;
-      modal.classList.remove('hidden');
-      modal.classList.add('show');
-    };
+    // Lazy assign image src once modal is visible
+    requestAnimationFrame(() => {
+      const img = qs('#listing-detail-img');
+      if(img && img.getAttribute('data-src')){
+        img.src = img.getAttribute('data-src');
+        img.removeAttribute('data-src');
+        img.onclick = () => {
+          const modal = qs('#image-modal');
+          const modalImg = qs('#modal-image');
+          modalImg.src = img.src;
+          modal.classList.remove('hidden');
+          modal.classList.add('show');
+        };
+        img.addEventListener('load', ()=>{ imgWrap.classList.remove('shimmer'); });
+      }
+    });
   } else {
     imgWrap.classList.add('no-image');
+    imgWrap.classList.add('shimmer');
     imgWrap.innerHTML = `
       <span>No User Screenshot</span>
       <div class="listed-overlay">Listed: ${listedText}</div>
     `;
   }
 
-  showFlex(qs('#listing-detail-modal'));
+  // Show modal after DOM content prepared to reduce perceived latency
+  requestAnimationFrame(()=> showFlex(qs('#listing-detail-modal')));
   qs('#listing-detail-close').onclick = () => hideEl(qs('#listing-detail-modal'));
   // Update current detail index for navigation
   currentDetailIndex = currentRenderedListingIds.findIndex(x => String(x) === String(l.id));
@@ -413,7 +441,8 @@ async function renderUserState(){
   const statsSection = qs('#site-stats');
   if(statsSection) {
     statsSection.classList.remove('hidden');
-    await renderSiteStats();
+    // Fire stats fetch without blocking other user state/network requests
+    renderSiteStats();
   }
   
   // Update API status when rendering user state
@@ -509,6 +538,8 @@ async function renderListings(){
   
   try {
     const listings = await getFilteredListings();
+    cachedListings = listings; // update cache
+    allListings = listings; // store for virtual scrolling
     currentRenderedListingIds = [];
     
     // Clear container
@@ -523,129 +554,15 @@ async function renderListings(){
       return; 
     }
     
-    // Fetch user info once for all listings (performance optimization)
-    const isAdmin = await isAdminUser();
-    let currentUserId = null;
-    
-    if(currentUser() && API_CONFIG.USE_API) {
-      const me = await ApiService.getMe();
-      if(me) {
-        currentUserId = String(me.id).trim();
-      }
-    }
-    
-    listings.forEach(l => {
-    currentRenderedListingIds.push(String(l.id));
-    const el = document.createElement('div'); el.className='listing card';
-    const fullDate = new Date(l.createdAt).toLocaleString();
-    const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
-    
-    // Elite badge in top right corner
-    if(l.elite){
-      const eliteBadge = document.createElement('img');
-      eliteBadge.className = 'elite-badge-corner';
-      eliteBadge.src = 'Items/Elite/Elite.png';
-      eliteBadge.alt = 'Elite';
-      eliteBadge.title = 'Elite Item';
-      eliteBadge.loading = 'lazy';
-      el.appendChild(eliteBadge);
-    }
-    
-    // Content area
-    const contentDiv = document.createElement('div'); contentDiv.className='listing-content';
-    const sellerProfile = getUser(l.seller) || {};
-    const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
-    
-    // Title with Element icon next to it
-    let titleHtml = `<div class="title-row"><h3 class="listing-title" data-id="${l.id}">${escapeHtml(l.title)}</h3>`;
-    if(l.element){
-      const elementClass = `element-${l.element.toLowerCase()}`;
-      titleHtml += `<img class="element-icon-title ${elementClass}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" title="${escapeHtml(l.element)} Element" loading="lazy"/>`;
-    }
-    titleHtml += `</div>`;
-    
-    let html = titleHtml + `<p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
-    
-    // Show item type description if available (Info comes first)
-    if(itemType){
-      html += `<p class="hint no-gap"><strong>Info:</strong></p><p class="hint no-gap">${escapeHtml(itemType.description)}</p>`;
-    }
-    
-    // Show listing-specific description if any (Seller's Notes with content below, no gap)
-    if(l.desc){
-      html += `<p class="no-gap"><strong>Seller's Notes:</strong></p><p class="no-gap">${colorizeStats(escapeHtml(l.desc))}</p>`;
-    }
-    
-    // Price row with item type image on far left, gold amount on far right
-    html += `<div class="price-row">`;
-    if(itemType && itemType.image){
-      html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}" loading="lazy"/>`;
-    }
-    html += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
-
-    // Separator above image area
-    html += `<div class="section-separator"></div>`;
-    
-    // User-uploaded image (centered below gold amount) or placeholder
-    if(l.image){
-      html += `<div class="image-container"><img class="user-uploaded-image" src="${l.image}" alt="${escapeHtml(l.title)}" loading="lazy"/></div>`;
+    // Enable virtual scrolling for large datasets
+    if(listings.length > VIRTUAL_SCROLL_THRESHOLD) {
+      virtualScrollContainer = container;
+      setupVirtualScroll(container);
+      renderVisibleListings();
     } else {
-      html += `<div class="image-container no-image"><span>No User Screenshot</span></div>`;
+      virtualScrollContainer = null;
+      renderAllListings(listings, container);
     }
-    
-    contentDiv.innerHTML = html;
-    el.appendChild(contentDiv);
-    
-    // Footer with time and controls
-    const footerDiv = document.createElement('div'); footerDiv.className='listing-footer';
-    const timeEl = document.createElement('p'); timeEl.className='listing-time'; timeEl.title=fullDate; timeEl.textContent=timeAgo(l.createdAt);
-    footerDiv.appendChild(timeEl);
-    
-    // Determine ownership synchronously using pre-fetched data
-    let isOwner = false;
-    
-    if(currentUser()) {
-      if(API_CONFIG.USE_API) {
-        // Compare with pre-fetched user ID
-        if(currentUserId) {
-          const sellerId = String(l.seller).trim();
-          isOwner = currentUserId === sellerId;
-        }
-      } else {
-        // In localStorage mode, compare emails
-        isOwner = currentUser() === l.seller;
-      }
-    }
-    
-    // Add controls immediately if user is owner or admin
-    if(isOwner || isAdmin){
-      const controls = document.createElement('div'); controls.className='controls';
-      const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent';
-      const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete';
-      btnEdit.addEventListener('click', async ()=> await startEditListing(l.id));
-      btnDel.addEventListener('click', async ()=> {
-        const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
-        showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
-      });
-      controls.appendChild(btnEdit); controls.appendChild(btnDel);
-      footerDiv.appendChild(controls);
-    }
-    
-    el.appendChild(footerDiv);
-    container.appendChild(el);
-  });
-
-  // Attach click listeners to entire listing cards for detail modal (faster UX)
-  container.querySelectorAll('.listing').forEach(card => {
-    const id = card.getAttribute('data-id') || (card.querySelector('.listing-title') && card.querySelector('.listing-title').getAttribute('data-id'));
-    if(!id) return;
-    card.addEventListener('click', (e) => {
-      // Ignore if double-clicking on image (image has its own modal), buttons, or links
-      if(e.target.classList && e.target.classList.contains('user-uploaded-image')) return;
-      if(e.target.closest && (e.target.closest('.controls') || e.target.closest('button') || e.target.closest('a'))) return;
-      openListingDetail(id);
-    });
-  });
   } catch(error) {
     console.error('Error rendering listings:', error);
     const loader = qs('#listings-loader');
@@ -655,6 +572,199 @@ async function renderListings(){
   } finally {
     isRendering = false;
   }
+}
+
+function setupVirtualScroll(container) {
+  // Remove old scroll listener if exists
+  container.removeEventListener('scroll', handleVirtualScroll);
+  container.addEventListener('scroll', debounce(handleVirtualScroll, 50));
+  renderedStartIndex = 0;
+  renderedEndIndex = Math.min(VIRTUAL_SCROLL_BUFFER, allListings.length);
+}
+
+function handleVirtualScroll() {
+  if(!virtualScrollContainer || allListings.length <= VIRTUAL_SCROLL_THRESHOLD) return;
+  
+  const container = virtualScrollContainer;
+  const scrollTop = container.scrollTop;
+  const containerHeight = container.clientHeight;
+  const scrollHeight = container.scrollHeight;
+  
+  // Check if near bottom (within 1.5 screens)
+  if(scrollTop + containerHeight * 2.5 >= scrollHeight && renderedEndIndex < allListings.length) {
+    renderedEndIndex = Math.min(renderedEndIndex + VIRTUAL_SCROLL_BUFFER, allListings.length);
+    appendListingBatch(renderedEndIndex - VIRTUAL_SCROLL_BUFFER, renderedEndIndex);
+  }
+}
+
+function renderVisibleListings() {
+  const container = virtualScrollContainer;
+  if(!container) return;
+  container.innerHTML = '';
+  appendListingBatch(0, renderedEndIndex);
+}
+
+async function appendListingBatch(start, end) {
+  const container = virtualScrollContainer || qs('#listings');
+  const batch = allListings.slice(start, end);
+  
+  const isAdmin = await isAdminUser();
+  let currentUserId = null;
+  
+  if(currentUser() && API_CONFIG.USE_API) {
+    const me = await ApiService.getMe();
+    if(me) {
+      currentUserId = String(me.id).trim();
+    }
+  }
+  
+  batch.forEach(l => {
+    renderSingleListing(l, container, isAdmin, currentUserId);
+  });
+  
+  // Attach click listeners to new batch
+  attachListingClickListeners(container);
+}
+
+async function renderAllListings(listings, container) {
+  currentRenderedListingIds = [];
+  
+  // Fetch user info once for all listings (performance optimization)
+  const isAdmin = await isAdminUser();
+  let currentUserId = null;
+  
+  if(currentUser() && API_CONFIG.USE_API) {
+    const me = await ApiService.getMe();
+    if(me) {
+      currentUserId = String(me.id).trim();
+    }
+  }
+  
+  listings.forEach(l => {
+    renderSingleListing(l, container, isAdmin, currentUserId);
+  });
+  
+  // Attach click listeners to entire listing cards for detail modal (faster UX)
+  attachListingClickListeners(container);
+}
+
+function renderSingleListing(l, container, isAdmin, currentUserId) {
+  currentRenderedListingIds.push(String(l.id));
+  const el = document.createElement('div'); el.className='listing card';
+  const fullDate = new Date(l.createdAt).toLocaleString();
+  const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
+  
+  // Elite badge in top right corner
+  if(l.elite){
+    const eliteBadge = document.createElement('img');
+    eliteBadge.className = 'elite-badge-corner';
+    eliteBadge.src = 'Items/Elite/Elite.png';
+    eliteBadge.alt = 'Elite';
+    eliteBadge.title = 'Elite Item';
+    eliteBadge.loading = 'lazy';
+    eliteBadge.decoding = 'async';
+    el.appendChild(eliteBadge);
+  }
+  
+  // Content area
+  const contentDiv = document.createElement('div'); contentDiv.className='listing-content';
+  const sellerProfile = getUser(l.seller) || {};
+  const sellerDisplay = sellerProfile.displayName || l.sellerName || l.seller || 'unknown';
+  
+  // Title with Element icon next to it
+  let titleHtml = `<div class="title-row"><h3 class="listing-title" data-id="${l.id}">${escapeHtml(l.title)}</h3>`;
+  if(l.element){
+    const elementClass = `element-${l.element.toLowerCase()}`;
+    titleHtml += `<img class="element-icon-title ${elementClass}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" title="${escapeHtml(l.element)} Element" loading="lazy" decoding="async"/>`;
+  }
+  titleHtml += `</div>`;
+  
+  let html = titleHtml + `<p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
+  
+  // Show item type description if available (Info comes first)
+  if(itemType){
+    html += `<p class="hint no-gap"><strong>Info:</strong></p><p class="hint no-gap">${escapeHtml(itemType.description)}</p>`;
+  }
+  
+  // Show listing-specific description if any (Seller's Notes with content below, no gap)
+  if(l.desc){
+    html += `<p class="no-gap"><strong>Seller's Notes:</strong></p><p class="no-gap">${colorizeStats(escapeHtml(l.desc))}</p>`;
+  }
+  
+  // Price row with item type image on far left, gold amount on far right
+  html += `<div class="price-row">`;
+  if(itemType && itemType.image){
+    html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}" loading="lazy" decoding="async"/>`;
+  }
+  html += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon" decoding="async"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
+
+  // Separator above image area
+  html += `<div class="section-separator"></div>`;
+  
+  // User-uploaded image (centered below gold amount) or placeholder
+  if(l.image){
+    html += `<div class="image-container"><img class="user-uploaded-image" src="${l.image}" alt="${escapeHtml(l.title)}" loading="lazy" decoding="async"/></div>`;
+  } else {
+    html += `<div class="image-container no-image"><span>No User Screenshot</span></div>`;
+  }
+  
+  contentDiv.innerHTML = html;
+  el.appendChild(contentDiv);
+  
+  // Footer with time and controls
+  const footerDiv = document.createElement('div'); footerDiv.className='listing-footer';
+  const timeEl = document.createElement('p'); timeEl.className='listing-time'; timeEl.title=fullDate; timeEl.textContent=timeAgo(l.createdAt);
+  footerDiv.appendChild(timeEl);
+  
+  // Determine ownership synchronously using pre-fetched data
+  let isOwner = false;
+  
+  if(currentUser()) {
+    if(API_CONFIG.USE_API) {
+      // Compare with pre-fetched user ID
+      if(currentUserId) {
+        const sellerId = String(l.seller).trim();
+        isOwner = currentUserId === sellerId;
+      }
+    } else {
+      // In localStorage mode, compare emails
+      isOwner = currentUser() === l.seller;
+    }
+  }
+  
+  // Add controls immediately if user is owner or admin
+  if(isOwner || isAdmin){
+    const controls = document.createElement('div'); controls.className='controls';
+    const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent'; btnEdit.type='button';
+    const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete'; btnDel.type='button';
+    btnEdit.addEventListener('click', async ()=> await startEditListing(l.id));
+    btnDel.addEventListener('click', async ()=> {
+      const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
+      showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
+    });
+    controls.appendChild(btnEdit); controls.appendChild(btnDel);
+    footerDiv.appendChild(controls);
+  }
+    
+  el.appendChild(footerDiv);
+  container.appendChild(el);
+}
+
+function attachListingClickListeners(container) {
+  // Attach click listeners to entire listing cards for detail modal (faster UX)
+  container.querySelectorAll('.listing').forEach(card => {
+    const id = card.getAttribute('data-id') || (card.querySelector('.listing-title') && card.querySelector('.listing-title').getAttribute('data-id'));
+    if(!id) return;
+    // Remove existing listener to avoid duplicates
+    const newCard = card.cloneNode(true);
+    card.parentNode.replaceChild(newCard, card);
+    newCard.addEventListener('click', (e) => {
+      // Ignore if double-clicking on image (image has its own modal), buttons, or links
+      if(e.target.classList && e.target.classList.contains('user-uploaded-image')) return;
+      if(e.target.closest && (e.target.closest('.controls') || e.target.closest('button') || e.target.closest('a'))) return;
+      openListingDetail(id);
+    });
+  });
 }
 
 async function deleteListing(id){
@@ -2217,6 +2327,34 @@ function stopApiStatusMonitoring() {
     clearInterval(apiStatusCheckInterval);
     apiStatusCheckInterval = null;
   }
+}
+
+// Register service worker for caching
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then((registration) => {
+        console.log('✅ Service Worker registered:', registration.scope);
+        
+        // Check for updates periodically
+        setInterval(() => {
+          registration.update();
+        }, 60000); // Check every minute
+        
+        // Listen for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('🔄 New service worker available, will activate on next page load');
+            }
+          });
+        });
+      })
+      .catch((error) => {
+        console.warn('⚠️ Service Worker registration failed:', error);
+      });
+  });
 }
 
 // On load

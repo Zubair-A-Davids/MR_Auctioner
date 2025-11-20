@@ -9,6 +9,7 @@ import { query } from './db.js';
 dotenv.config();
 
 const app = express();
+app.disable('x-powered-by');
 
 // Enable gzip compression for all responses
 app.use(compression());
@@ -36,6 +37,18 @@ app.use((req, res, next) => {
 app.get('/healthz', async (_req, res) => {
   try {
     await query('SELECT 1');
+    res.set('Cache-Control','no-store');
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Alternate health route for external probes expecting /health
+app.get('/health', async (_req, res) => {
+  try {
+    await query('SELECT 1');
+    res.set('Cache-Control','no-store');
     res.json({ ok: true });
   } catch {
     res.status(500).json({ ok: false });

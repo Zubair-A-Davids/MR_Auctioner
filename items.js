@@ -1380,9 +1380,16 @@ const ITEM_TYPES = [
   },
 ];
 
-// Helper to get item by ID
+// Build fast lookup map for item types (O(1) retrieval)
+const ITEM_TYPE_MAP = (() => {
+  const map = Object.create(null);
+  for (const it of ITEM_TYPES) map[it.id] = it;
+  return map;
+})();
+
+// Helper to get item by ID (constant time)
 function getItemType(itemId) {
-  return ITEM_TYPES.find(item => item.id === itemId);
+  return ITEM_TYPE_MAP[itemId] || null;
 }
 
 // Helper to get all items of a type
