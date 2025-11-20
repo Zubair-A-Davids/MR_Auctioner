@@ -149,13 +149,13 @@ router.put('/password', requireAuth, async (req, res) => {
   }
 });
 
-// Get all users (admin only)
+// Get all users (admin and mod access)
 router.get('/users', requireAuth, async (req, res) => {
   try {
-    // Check if requester is admin
-    const adminCheck = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
-    if (!adminCheck.rowCount || !adminCheck.rows[0].is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
+    // Check if requester is admin or mod
+    const userCheck = await query('SELECT is_admin, is_mod FROM users WHERE id = $1', [req.user.id]);
+    if (!userCheck.rowCount || (!userCheck.rows[0].is_admin && !userCheck.rows[0].is_mod)) {
+      return res.status(403).json({ error: 'Admin or Moderator access required' });
     }
     
     const usersResult = await query(
