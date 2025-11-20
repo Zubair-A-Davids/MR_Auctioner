@@ -1,13 +1,17 @@
 - global chat feature
-- a feature where players can check what other have for sale
-- compress images
-- hide the welcome message
+x a feature where players can check what other have for sale
+x compress images
+x hide the welcome message
 - giveaway section
-- Rate system but the seller has to approve the buyer, and the buyer can only rate 3 ppl per day, which cant be the same person
+- Rate system - The buyer can give the Seller 1 sana or 1 nex use  (Seller has to say that this person bought his item then only can the buyer rate the seller), and the buyer can only rate 3 ppl per day, which cant be the same person
 - discord bot with api mayhaps?
 - resize the image in sell menu when you select one
 - a box around the bio on player pop-up
 - online/offline
-- time since last online
+x time since last online
 - Simple PM/whisper chat, 2 messages per minute limit of 60 letters
 - Enchanted and Elite option
+Add a extra status that users can add to items they want to sell.
+The "Elite" status is on its own, which is just a "Elite" Or not "Elite" (Use items/Elite/Elite.png)
+The other stutuses are Elements, the elements are "Energy", "Fire", "Ice", "Mana", Nature, "Physical" (Use items/Enchants/"Element".png)
+These status should be chosen in Create listing and be viewed on the items in the Active Listings
