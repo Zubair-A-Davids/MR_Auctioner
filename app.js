@@ -76,16 +76,36 @@ async function openListingDetail(id){
     const infoEl = qs('#listing-detail-info');
     const notesEl = qs('#listing-detail-notes');
     const imgWrap = qs('#listing-detail-image');
+    const modalInner = qs('#listing-detail-modal .modal-inner');
 
-    // Title with icons
-    let titleHtml = `${escapeHtml(l.title)}`;
-    if(l.element){
-      titleHtml += ` <img class="element-icon-title element-${l.element.toLowerCase()}" src="Items/Enchants/${escapeHtml(l.element)}.png" alt="${escapeHtml(l.element)}" style="width:32px;height:32px">`;
-    }
+    // Remove any existing badge elements from modal
+    const existingBadges = modalInner.querySelectorAll('.elite-badge-detail, .element-badge-detail');
+    existingBadges.forEach(b => b.remove());
+
+    // Add badges to modal inner container (right edge)
     if(l.elite){
-      titleHtml += ` <img src="Items/Elite/Elite.png" alt="Elite" style="width:28px;height:28px;vertical-align:middle">`;
+      const eliteBadge = document.createElement('img');
+      eliteBadge.className = 'elite-badge-detail';
+      eliteBadge.src = 'Items/Elite/Elite.png';
+      eliteBadge.alt = 'Elite';
+      eliteBadge.title = 'Elite Item';
+      eliteBadge.loading = 'lazy';
+      eliteBadge.decoding = 'async';
+      modalInner.appendChild(eliteBadge);
     }
-    titleEl.innerHTML = titleHtml;
+    if(l.element){
+      const elementBadge = document.createElement('img');
+      elementBadge.className = 'element-badge-detail';
+      elementBadge.src = `Items/Enchants/${escapeHtml(l.element)}.png`;
+      elementBadge.alt = escapeHtml(l.element);
+      elementBadge.title = `${escapeHtml(l.element)} Element`;
+      elementBadge.loading = 'lazy';
+      elementBadge.decoding = 'async';
+      modalInner.appendChild(elementBadge);
+    }
+
+    // Title without icons (badges are now on right edge)
+    titleEl.innerHTML = escapeHtml(l.title);
 
     // Meta
     metaEl.innerHTML = `<strong>Seller:</strong> <span style="color:var(--accent)">${escapeHtml(sellerDisplay)}</span> · <strong>Price:</strong> ${Number(l.price)||0} gold`;
@@ -302,6 +322,7 @@ async function getListings(){
 
 // Search and filter functions
 let isRendering = false;
+let sellerCache = new Map(); // Cache for seller lookups
 
 async function applyFilters(){
   // Update filter values
@@ -320,71 +341,91 @@ async function applyFilters(){
 async function getFilteredListings(){
   let listings = await getListings();
   
-  // Filter by name (searches both item title and seller name)
-  if(currentFilters.name){
-    listings = listings.filter(l => {
-      const titleMatch = l.title.toLowerCase().includes(currentFilters.name);
-      const prof = getUser(l.seller) || {};
-      const sellerName = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
-      const sellerMatch = sellerName.includes(currentFilters.name);
-      return titleMatch || sellerMatch;
+  // Early return if no listings
+  if(!listings || listings.length === 0) return [];
+  
+  // Build seller cache once if needed for name filtering
+  if(currentFilters.name && !API_CONFIG.USE_API){
+    sellerCache.clear();
+    const users = loadJSON(LS_USERS, {});
+    Object.keys(users).forEach(username => {
+      const displayName = (users[username].displayName || username).toLowerCase();
+      sellerCache.set(username, displayName);
     });
   }
   
-  // Filter by seller
+  // Filter by seller first (most selective)
   if(currentFilters.seller){
     if(API_CONFIG.USE_API) {
-      // In API mode, filter by owner_id (UUID)
-      listings = listings.filter(l => {
-        return String(l.seller).trim() === String(currentFilters.seller).trim();
-      });
+      const sellerId = String(currentFilters.seller).trim();
+      listings = listings.filter(l => String(l.seller).trim() === sellerId);
     } else {
-      // In localStorage mode, filter by email or display name
-      const wanted = (currentFilters.seller || '').toLowerCase();
+      const wanted = currentFilters.seller.toLowerCase();
       listings = listings.filter(l => {
-        const prof = getUser(l.seller) || {};
-        const disp = (prof.displayName || l.sellerName || l.seller || '').toLowerCase();
-        return disp === wanted || l.seller.toLowerCase() === wanted;
+        const cachedName = sellerCache.get(l.seller) || '';
+        return cachedName === wanted || l.seller.toLowerCase() === wanted;
       });
     }
+    if(listings.length === 0) return [];
   }
   
-  // Filter by Elite status
+  // Filter by Elite status (fast boolean check)
   if(currentFilters.elite === 'elite'){
     listings = listings.filter(l => l.elite === true);
+    if(listings.length === 0) return [];
   } else if(currentFilters.elite === 'non-elite'){
     listings = listings.filter(l => !l.elite);
+    if(listings.length === 0) return [];
   }
   
-  // Filter by Element
+  // Filter by Element (fast string comparison)
   if(currentFilters.element && currentFilters.element !== 'all'){
     if(currentFilters.element === 'none'){
       listings = listings.filter(l => !l.element || l.element === '');
     } else {
-      listings = listings.filter(l => l.element && l.element.toLowerCase() === currentFilters.element.toLowerCase());
+      const targetElement = currentFilters.element.toLowerCase();
+      listings = listings.filter(l => l.element && l.element.toLowerCase() === targetElement);
     }
+    if(listings.length === 0) return [];
   }
   
-  // Sort by date FIRST (to establish base order)
-  if(currentFilters.sort === 'oldest'){
-    listings = listings.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+  // Filter by name (searches both item title and seller name) - most expensive, do last
+  if(currentFilters.name){
+    const searchTerm = currentFilters.name;
+    listings = listings.filter(l => {
+      // Check title first (most common match)
+      if(l.title.toLowerCase().includes(searchTerm)) return true;
+      
+      // Check seller name
+      if(API_CONFIG.USE_API){
+        const sellerName = (l.sellerName || l.seller || '').toLowerCase();
+        return sellerName.includes(searchTerm);
+      } else {
+        const cachedName = sellerCache.get(l.seller) || '';
+        return cachedName.includes(searchTerm);
+      }
+    });
+    if(listings.length === 0) return [];
+  }
+  
+  // Optimize sorting - combine into single pass when possible
+  const needsPriceSort = currentFilters.priceSort && currentFilters.priceSort !== 'none';
+  const needsDateSort = currentFilters.sort && currentFilters.sort !== 'newest';
+  
+  if(needsPriceSort){
+    // Price sort takes priority
+    const ascending = currentFilters.priceSort === 'low-high';
+    listings.sort((a, b) => {
+      const priceA = Number(a.price) || 0;
+      const priceB = Number(b.price) || 0;
+      return ascending ? priceA - priceB : priceB - priceA;
+    });
+  } else if(needsDateSort){
+    // Date sort (oldest first)
+    listings.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   } else {
-    listings = listings.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }
-  
-  // Sort by price LAST (takes priority over date)
-  if(currentFilters.priceSort === 'low-high'){
-    listings = listings.sort((a,b) => {
-      const priceA = Number(a.price) || 0;
-      const priceB = Number(b.price) || 0;
-      return priceA - priceB;
-    });
-  } else if(currentFilters.priceSort === 'high-low'){
-    listings = listings.sort((a,b) => {
-      const priceA = Number(a.price) || 0;
-      const priceB = Number(b.price) || 0;
-      return priceB - priceA;
-    });
+    // Default: newest first
+    listings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
   
   return listings;
@@ -861,44 +902,60 @@ async function processImageFile(file, maxBytes=200*1024, maxDim=1200){
 
 // Edit flow
 async function startEditListing(id){
-  let listings;
-  if(API_CONFIG.USE_API) {
-    listings = await ApiService.getListings();
-  } else {
-    listings = getListings();
-  }
-  const l = listings.find(x=>x.id===id); if(!l) return alert('Listing not found');
+  // Use cached listings to avoid unnecessary API call
+  let listings = cachedListings && cachedListings.length > 0 ? cachedListings : null;
   
-  qs('#item-title').value = l.title;
-  
-  // Load item type description if available
-  const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
-  if(itemType){
-    qs('#item-type-desc').value = itemType.description;
-    selectedItemTypeId = l.itemTypeId;
-    qs('#selected-item-info').textContent = `Selected: ${itemType.name} (${itemType.type})`;
-  } else {
-    qs('#item-type-desc').value = '';
-    qs('#selected-item-info').textContent = '';
+  if(!listings){
+    if(API_CONFIG.USE_API) {
+      listings = await ApiService.getListings();
+      cachedListings = listings;
+    } else {
+      listings = getListings();
+      cachedListings = listings;
+    }
   }
   
-  qs('#item-desc').value = l.desc || '';
-  qs('#item-price').value = Number(l.price)||0;
+  const l = listings.find(x=>x.id===id); 
+  if(!l) return showMessage('Listing not found', 'error');
   
-  // Load Elite and Element statuses
-  qs('#item-elite').checked = !!l.elite;
-  qs('#item-element').value = l.element || '';
-  
-  qs('#editing-id').value = l.id;
-  if(l.image){ qs('#item-image-preview').src = l.image; qs('#item-image-preview').classList.remove('hidden'); }
-  
-  // Show the create listing form and hide listings
+  // Show form immediately for better UX
   qs('#create-listing-area').classList.remove('hidden');
   qs('#listings-section').classList.add('hidden');
   qs('#hamburger-menu').classList.add('hidden');
   
-  qs('#btn-create-listing').textContent = 'Save changes'; 
-  qs('#btn-cancel-edit').classList.remove('hidden');
+  // Populate fields asynchronously
+  requestAnimationFrame(() => {
+    qs('#item-title').value = l.title;
+    
+    // Load item type description if available
+    const itemType = l.itemTypeId ? getItemType(l.itemTypeId) : null;
+    if(itemType){
+      qs('#item-type-desc').value = itemType.description;
+      selectedItemTypeId = l.itemTypeId;
+      qs('#selected-item-info').textContent = `Selected: ${itemType.name} (${itemType.type})`;
+    } else {
+      qs('#item-type-desc').value = '';
+      qs('#selected-item-info').textContent = '';
+    }
+    
+    qs('#item-desc').value = l.desc || '';
+    qs('#item-price').value = Number(l.price)||0;
+    
+    // Load Elite and Element statuses
+    qs('#item-elite').checked = !!l.elite;
+    qs('#item-element').value = l.element || '';
+    
+    qs('#editing-id').value = l.id;
+    if(l.image){ 
+      qs('#item-image-preview').src = l.image; 
+      qs('#item-image-preview').classList.remove('hidden'); 
+    } else {
+      qs('#item-image-preview').classList.add('hidden');
+    }
+    
+    qs('#btn-create-listing').textContent = 'Save changes'; 
+    qs('#btn-cancel-edit').classList.remove('hidden');
+  });
 }
 
 function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -992,9 +1049,21 @@ function renderItemTypeModal(){
 
 // Wire up
 function setup(){
-  ensureAdmin();
+  try {
+    ensureAdmin();
+  } catch(e) {
+    console.error('ensureAdmin error:', e);
+  }
+  
   // Ensure any modals are hidden on startup (defensive)
-  ['#profile-modal','#user-popup','#item-type-modal','#confirm-modal','#change-password-modal'].forEach(id => hideEl(qs(id)));
+  try {
+    ['#profile-modal','#user-popup','#item-type-modal','#confirm-modal','#change-password-modal','#help-modal'].forEach(id => {
+      const el = qs(id);
+      if(el) hideEl(el);
+    });
+  } catch(e) {
+    console.error('Modal hide error:', e);
+  }
   
   // MR Auctioner title click to return to Active Listings
   const siteTitle = qs('#site-title-link');
@@ -1011,23 +1080,31 @@ function setup(){
   }
   
   // show/hide forms
-  qs('#btn-show-register').addEventListener('click', ()=>{ qs('#register-card').classList.remove('hidden'); qs('#login-card').classList.add('hidden'); });
-  qs('#btn-show-login').addEventListener('click', ()=>{ qs('#login-card').classList.remove('hidden'); qs('#register-card').classList.add('hidden'); });
-  qs('#btn-logout').addEventListener('click', ()=>{
+  const btnShowRegister = qs('#btn-show-register');
+  const btnShowLogin = qs('#btn-show-login');
+  const btnLogout = qs('#btn-logout');
+  
+  if(btnShowRegister) btnShowRegister.addEventListener('click', ()=>{ qs('#register-card').classList.remove('hidden'); qs('#login-card').classList.add('hidden'); });
+  if(btnShowLogin) btnShowLogin.addEventListener('click', ()=>{ qs('#login-card').classList.remove('hidden'); qs('#register-card').classList.add('hidden'); });
+  if(btnLogout) btnLogout.addEventListener('click', ()=>{
     showConfirmModal('Log out from MR Auctioner?', async ()=>{ ApiService.logout(); await renderUserState(); renderListings(); showMessage('Logged out', 'info'); });
   });
 
   // Item type selector
-  qs('#btn-open-item-types').addEventListener('click', ()=>{ renderItemTypeModal(); showFlex(qs('#item-type-modal')); });
-  qs('#close-item-modal').addEventListener('click', ()=> hideEl(qs('#item-type-modal')));
+  const btnOpenItemTypes = qs('#btn-open-item-types');
+  const closeItemModal = qs('#close-item-modal');
+  if(btnOpenItemTypes) btnOpenItemTypes.addEventListener('click', ()=>{ renderItemTypeModal(); showFlex(qs('#item-type-modal')); });
+  if(closeItemModal) closeItemModal.addEventListener('click', ()=> hideEl(qs('#item-type-modal')));
 
   // Confirm modal handlers
-  qs('#confirm-yes').addEventListener('click', ()=>{
+  const confirmYes = qs('#confirm-yes');
+  const confirmNo = qs('#confirm-no');
+  if(confirmYes) confirmYes.addEventListener('click', ()=>{
     hideEl(qs('#confirm-modal'));
     if(confirmCallback) confirmCallback();
     confirmCallback = null;
   });
-  qs('#confirm-no').addEventListener('click', ()=>{
+  if(confirmNo) confirmNo.addEventListener('click', ()=>{
     hideEl(qs('#confirm-modal'));
     confirmCallback = null;
   });
@@ -1232,6 +1309,10 @@ function setup(){
   const btnProfile = qs('#btn-my-profile');
   if(btnProfile){ btnProfile.addEventListener('click', async ()=>{ await openProfileModal(); hideEl(qs('#hamburger-menu')); }); }
 
+  // Help / FAQ menu
+  const btnUserHelp = qs('#btn-user-help');
+  if(btnUserHelp){ btnUserHelp.addEventListener('click', ()=>{ showFlex(qs('#help-modal')); hideEl(qs('#hamburger-menu')); }); }
+
   // View listings action from menu
   const btnViewListings = qs('#btn-view-listings-menu');
   if(btnViewListings){ btnViewListings.addEventListener('click', ()=>{ qs('#create-listing-area').classList.add('hidden'); hideEl(qs('#hamburger-menu')); qs('#listings-section').classList.remove('hidden'); currentFilters.seller=''; currentFilters.sellerLabel=''; updateURL(); updateSellerFilterChip(); renderListings(); }); }
@@ -1270,54 +1351,76 @@ function setup(){
   // Search and filter event listeners with debouncing for better performance
   const debouncedApplyFilters = debounce(applyFilters, 300);
   
-  qs('#search-button').addEventListener('click', applyFilters);
-  qs('#search-name').addEventListener('keypress', (e) => {
-    if(e.key === 'Enter') applyFilters();
-  });
-  // Debounce search input for real-time filtering
-  qs('#search-name').addEventListener('input', debouncedApplyFilters);
+  const searchButton = qs('#search-button');
+  const searchName = qs('#search-name');
+  const searchPrice = qs('#search-price');
+  const searchSort = qs('#search-sort');
+  const searchElite = qs('#search-elite');
+  const searchElement = qs('#search-element');
+  const searchReset = qs('#search-reset');
   
-  qs('#search-price').addEventListener('change', applyFilters);
-  qs('#search-sort').addEventListener('change', applyFilters);
-  qs('#search-elite').addEventListener('change', applyFilters);
-  qs('#search-element').addEventListener('change', applyFilters);
-  qs('#search-reset').addEventListener('click', resetFilters);
+  if(searchButton) searchButton.addEventListener('click', applyFilters);
+  if(searchName) {
+    searchName.addEventListener('keypress', (e) => {
+      if(e.key === 'Enter') applyFilters();
+    });
+    searchName.addEventListener('input', debouncedApplyFilters);
+  }
+  
+  if(searchPrice) searchPrice.addEventListener('change', applyFilters);
+  if(searchSort) searchSort.addEventListener('change', applyFilters);
+  if(searchElite) searchElite.addEventListener('change', applyFilters);
+  if(searchElement) searchElement.addEventListener('change', applyFilters);
+  if(searchReset) searchReset.addEventListener('click', resetFilters);
 
   // Price spinner controls
-  qs('#btn-price-minus').addEventListener('click', ()=>{
-    const priceInput = qs('#item-price');
-    const current = Number(priceInput.value) || 0;
-    priceInput.value = Math.max(1, current - 1);
-  });
+  const btnPriceMinus = qs('#btn-price-minus');
+  const btnPricePlus = qs('#btn-price-plus');
+  const itemPriceInput = qs('#item-price');
   
-  qs('#btn-price-plus').addEventListener('click', ()=>{
-    const priceInput = qs('#item-price');
-    const current = Number(priceInput.value) || 0;
-    priceInput.value = current + 1;
-  });
+  if(btnPriceMinus && itemPriceInput) {
+    btnPriceMinus.addEventListener('click', ()=>{
+      const current = Number(itemPriceInput.value) || 0;
+      itemPriceInput.value = Math.max(1, current - 1);
+    });
+  }
+  
+  if(btnPricePlus && itemPriceInput) {
+    btnPricePlus.addEventListener('click', ()=>{
+      const current = Number(itemPriceInput.value) || 0;
+      itemPriceInput.value = current + 1;
+    });
+  }
 
   // Price input validation - only allow positive numbers
-  qs('#item-price').addEventListener('input', ()=>{
-    let val = qs('#item-price').value;
-    val = val.replace(/[^0-9]/g, '');
-    if(val === '' || parseInt(val) === 0) val = '1';
-    qs('#item-price').value = val;
-  });
+  if(itemPriceInput) {
+    itemPriceInput.addEventListener('input', ()=>{
+      let val = itemPriceInput.value;
+      val = val.replace(/[^0-9]/g, '');
+      if(val === '' || parseInt(val) === 0) val = '1';
+      itemPriceInput.value = val;
+    });
+  }
 
   // Image type validation
-  qs('#item-image').addEventListener('change', (ev)=>{
-    const file = ev.target.files?.[0];
-    if(!file) return;
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if(!allowedTypes.includes(file.type)){
-      showMessage('Only JPG, PNG, GIF, and WebP images are allowed', 'error');
-      ev.target.value = '';
-      qs('#item-image-preview').style.display = 'none';
-      return;
-    }
-    // Continue with existing file processing logic
-    qs('#item-image').dispatchEvent(new Event('change-valid'));
-  });
+  const itemImage = qs('#item-image');
+  const itemImagePreview = qs('#item-image-preview');
+  
+  if(itemImage && itemImagePreview) {
+    itemImage.addEventListener('change', (ev)=>{
+      const file = ev.target.files?.[0];
+      if(!file) return;
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if(!allowedTypes.includes(file.type)){
+        showMessage('Only JPG, PNG, GIF, and WebP images are allowed', 'error');
+        ev.target.value = '';
+        itemImagePreview.style.display = 'none';
+        return;
+      }
+      // Continue with existing file processing logic
+      itemImage.dispatchEvent(new Event('change-valid'));
+    });
+  }
 
   // Drag and drop for image upload
   const dropZone = qs('#image-drop-zone');
@@ -1414,6 +1517,8 @@ function setup(){
   if(profileCancelBtn) {
     profileCancelBtn.addEventListener('click', ()=> hideEl(qs('#profile-modal')));
   }
+  const helpCloseBtn = qs('#help-close');
+  if(helpCloseBtn){ helpCloseBtn.addEventListener('click', ()=> hideEl(qs('#help-modal'))); }
   const btnOpenChangePassword = qs('#btn-open-change-password');
   if(btnOpenChangePassword) {
     btnOpenChangePassword.addEventListener('click', (e)=> {
@@ -1707,11 +1812,21 @@ function setup(){
   qs('#btn-view-listings').addEventListener('click', ()=>{ qs('#create-listing-area').classList.add('hidden'); qs('#listings-section').classList.remove('hidden'); });
 
   // Restore filter state from URL
-  restoreFiltersFromURL();
+  try {
+    restoreFiltersFromURL();
+  } catch(e) {
+    console.error('restoreFiltersFromURL error:', e);
+  }
   
-  // initial render
-  renderUserState(); renderListings();
-  updateSellerFilterChip();
+  // initial render - async operations that should not block
+  Promise.all([
+    renderUserState().catch(e => console.error('renderUserState error:', e)),
+    renderListings().catch(e => console.error('renderListings error:', e))
+  ]).then(() => {
+    updateSellerFilterChip();
+  }).catch(e => {
+    console.error('Initial render error:', e);
+  });
 }
 
 function finishEditUI(){
@@ -2349,22 +2464,26 @@ if ('serviceWorker' in navigator) {
 
 // On load
 window.addEventListener('DOMContentLoaded', async () => {
-  setup();
-  
-  // Start API status monitoring
-  startApiStatusMonitoring();
-  
-  // Hide loading screen after everything is set up
-  setTimeout(() => {
-    const loadingScreen = document.getElementById('loading-screen');
-    if(loadingScreen) {
-      loadingScreen.style.opacity = '0';
-      loadingScreen.style.transition = 'opacity 0.3s ease-out';
-      setTimeout(() => {
-        loadingScreen.remove();
-      }, 300);
-    }
-  }, 100); // Minimal delay for faster perceived performance
+  try {
+    setup();
+    
+    // Start API status monitoring
+    startApiStatusMonitoring();
+  } catch(error) {
+    console.error('Setup error:', error);
+  } finally {
+    // Always hide loading screen after setup attempt
+    setTimeout(() => {
+      const loadingScreen = document.getElementById('loading-screen');
+      if(loadingScreen) {
+        loadingScreen.style.opacity = '0';
+        loadingScreen.style.transition = 'opacity 0.3s ease-out';
+        setTimeout(() => {
+          loadingScreen.remove();
+        }, 300);
+      }
+    }, 100); // Minimal delay for faster perceived performance
+  }
 });
 
 // Fallback: ensure loading screen never persists beyond 5s even on errors

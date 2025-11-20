@@ -42,11 +42,11 @@
   </div>
   <style>
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to { transform: rotate(360deg); will-change: transform; }
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.8; transform: scale(1.05); }
+      50% { opacity: 0.8; transform: scale(1.05); will-change: transform, opacity; }
     }
   </style>
   
@@ -77,6 +77,7 @@
             <button id="btn-admin-panel" class="menu-item hidden">Admin Panel</button>
             <button id="btn-mod-panel" class="menu-item hidden">Moderation</button>
             <button id="btn-mod-history" class="menu-item hidden">Moderation History</button>
+            <button id="btn-user-help" class="menu-item">FAQ / Help</button>
           </div>
         </div>
         <button id="btn-show-register" class="btn btn-primary">Register</button>
@@ -170,9 +171,26 @@
 
 <section id="landing" class="card">
   <h2>Welcome to Mirage Realms Auctioner</h2>
-  <p class="hint">A small Auction House fan site for Mirage Realms, register and login to sell items.</p>
-  <p class="hint">NOTE: All Mirage Realms Rules apply to this site. Read the <a href="https://miragerealms.co.uk/support/knowledgebase.php?article=5" target="_blank" rel="noopener noreferrer" class="accent-text">Mirage Realms Rules</a></p>
-  <p class="hint"><span class="accent-text">Browse active listings below.</span> Enjoy your stay and message <a href="#" class="seller-link" data-user="Exteria">@Fukarizoh</a> on Discord for any bugs or issues :D</p>
+  <p class="hint">Mirage Realms Unofficial Experimental Auction House, register and login to sell items.</p>
+  <p class="hint">
+  <strong>Note:</strong> This site adheres to all 
+  <a href="https://miragerealms.co.uk/support/knowledgebase.php?article=5" target="_blank" rel="noopener noreferrer" class="accent-text">
+    Mirage Realms Rules
+  </a>.  
+  <span style="color: red; font-weight: bold;">Account trading is strictly prohibited and <strong>WILL</strong> get you bonked.</span>
+</p>
+  <p class="hint"><span class="accent-text">Browse active listings below. </span> Enjoy your stay and visit the MR Auctioner Discord Server to report any bugs or issues :D</p>
+  <div class="hint discord-links" style="display: flex; justify-content: center; gap: 48px; margin-top: 24px;">
+    <a href="https://discord.com/invite/EFuRXaanGC" target="_blank" rel="noopener noreferrer">
+      <img src="icon.png" alt="MR Auctioner Discord" class="social-logo" />
+    </a>
+    <a href="https://discord.com/invite/7MHQaTjjMR" target="_blank" rel="noopener noreferrer">
+      <img src="discord-logo.png" alt="Mirage Realms Discord" class="social-logo" />
+    </a>
+    <a href="https://www.miragerealms.co.uk/wiki/" target="_blank" rel="noopener noreferrer">
+      <img src="wiki-icon.png" alt="Mirage Realms Wiki" class="social-logo" />
+    </a>
+  </div>
 </section>
 
 <!-- Site Statistics -->
@@ -475,6 +493,23 @@
       <div class="form-actions">
         <button id="mod-history-close" class="btn">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Help / FAQ Modal -->
+  <div id="help-modal" class="modal hidden" aria-labelledby="help-modal-title" aria-modal="true" role="dialog">
+    <div class="modal-inner modal-inner-dark" style="max-width:800px;">
+      <h2 id="help-modal-title" style="margin-top:0">FAQ & User Guide</h2>
+      <p class="hint" style="margin-top:.25rem">Learn how to use all MR Auctioner features.</p>
+<div class="help-content" style="max-height:70vh;overflow-y:auto;padding-right:.5rem;display:flex;align-items:center;justify-content:center;">
+  <div class="nub-banner" role="note" aria-label="Humorous help message">
+    <span class="nub-text">Figure it out urself nub</span>
+  </div>
+</div>
+      <div class="form-actions" style="margin-top:1.25rem;justify-content:center">
+        <button id="help-close" class="btn btn-accent">Close</button>
+      </div>
+    </div>
     </div>
   </div>
 
