@@ -32,9 +32,17 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
-    const ures = await query('SELECT id, password_hash FROM users WHERE email = $1', [email.toLowerCase()]);
+    const ures = await query('SELECT id, password_hash, banned_until, banned_reason FROM users WHERE email = $1', [email.toLowerCase()]);
     if (!ures.rowCount) return res.status(401).json({ error: 'Invalid credentials' });
     const user = ures.rows[0];
+    
+    // Check if user is banned
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      const remainingMin = Math.ceil((new Date(user.banned_until) - new Date()) / 60000);
+      const reason = user.banned_reason ? ` Reason: ${user.banned_reason}` : '';
+      return res.status(403).json({ error: `Account banned. ${remainingMin} minutes remaining.${reason}` });
+    }
+    
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(user.id), expiresIn: '7d' });
@@ -50,9 +58,17 @@ router.get('/me', requireAuth, async (req, res) => {
     // Update last_seen timestamp
     await query('UPDATE users SET last_seen = NOW() WHERE id = $1', [req.user.id]);
     
-    const ures = await query('SELECT id, email, display_name, discord, bio, avatar, is_admin, is_mod, last_seen FROM users WHERE id = $1', [req.user.id]);
+    const ures = await query('SELECT id, email, display_name, discord, bio, avatar, is_admin, is_mod, last_seen, banned_until, banned_reason FROM users WHERE id = $1', [req.user.id]);
     if (!ures.rowCount) return res.status(404).json({ error: 'Not found' });
     const user = ures.rows[0];
+    
+    // Check if user is banned
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      const remainingMin = Math.ceil((new Date(user.banned_until) - new Date()) / 60000);
+      const reason = user.banned_reason ? ` Reason: ${user.banned_reason}` : '';
+      return res.status(403).json({ error: `Account banned. ${remainingMin} minutes remaining.${reason}` });
+    }
+    
     return res.json({ 
       id: user.id, 
       email: user.email, 

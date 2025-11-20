@@ -45,6 +45,16 @@ const ApiService = {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      
+      // Handle banned users - force logout
+      if (response.status === 403 && error.error && error.error.includes('banned')) {
+        console.warn('User is banned, forcing logout');
+        this.logout();
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
+      }
+      
       throw new Error(error.error || `HTTP ${response.status}`);
     }
 
