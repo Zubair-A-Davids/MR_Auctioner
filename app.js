@@ -1561,9 +1561,11 @@ function setup(){
       if(!u) return showMessage('Not signed in', 'error');
       
       const displayName = qs('#profile-displayname').value.trim();
-      const discord = qs('#profile-discord') ? qs('#profile-discord').value.trim() : '';
+      const discord = qs('#profile-discord').value.trim();
       const bio = qs('#profile-bio').value.trim();
       const avatar = qs('#profile-avatar').dataset.preview || qs('#profile-avatar-preview').src || '';
+      
+      console.log('Saving profile:', { displayName, discord, bio, avatarLength: avatar.length });
       
       const result = await ApiService.updateProfile(displayName, discord, bio, avatar);
       if(!result.ok) return showMessage(result.msg || 'Failed to save profile', 'error');
@@ -1858,9 +1860,11 @@ async function openProfileModal(){
     me = getUser(u) || {};
   }
   
+  console.log('Opening profile modal with data:', me);
+  
   qs('#profile-username').textContent = u;
   qs('#profile-displayname').value = me.displayName || '';
-  if(qs('#profile-discord')) qs('#profile-discord').value = me.discord || '';
+  qs('#profile-discord').value = me.discord || '';
   qs('#profile-bio').value = me.bio || '';
   qs('#profile-avatar-preview').src = me.avatar || '';
   if(me.avatar) qs('#profile-avatar-preview').classList.remove('hidden'); else qs('#profile-avatar-preview').classList.add('hidden');
