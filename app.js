@@ -2381,6 +2381,20 @@ function openModHistory(){
   showFlex(qs('#mod-history-modal'));
 }
 
+// Show toast message to user
+function showMessage(message, type = 'info', duration = 3000) {
+  const messageEl = qs('#site-message');
+  if (!messageEl) return;
+  
+  messageEl.textContent = message;
+  messageEl.className = `message show ${type}`;
+  
+  // Auto-hide after duration
+  setTimeout(() => {
+    messageEl.className = 'message hidden';
+  }, duration);
+}
+
 // Custom confirm modal
 let confirmCallback = null;
 function showConfirmModal(message, onConfirm){
