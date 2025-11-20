@@ -202,7 +202,9 @@ const ApiService = {
     }
 
     try {
+      console.log('Fetching all users from API...');
       const users = await this.apiRequest('/auth/users');
+      console.log('getAllUsers response:', users);
       return users;
     } catch (e) {
       console.error('Failed to get users:', e);

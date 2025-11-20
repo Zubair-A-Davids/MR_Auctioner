@@ -2022,10 +2022,13 @@ async function openAdminPanel(mode){
 async function renderAdminUsers(mode){
   const container = qs('#admin-users'); if(!container) return;
   
+  console.log('renderAdminUsers called, mode:', mode, 'API mode:', API_CONFIG.USE_API);
+  
   let users = {};
   if(API_CONFIG.USE_API){
     // Fetch users from API
     const apiUsers = await ApiService.getAllUsers();
+    console.log('API users received:', apiUsers);
     if(apiUsers){
       // Convert API format to localStorage format for compatibility
       apiUsers.forEach(u => {
@@ -2037,10 +2040,15 @@ async function renderAdminUsers(mode){
           bannedReason: u.bannedReason
         };
       });
+      console.log('Converted users:', users);
+    } else {
+      console.warn('No users returned from API');
     }
   } else {
     users = loadJSON(LS_USERS, {});
   }
+  
+  console.log('Total users to display:', Object.keys(users).length);
   
   const viewer = API_CONFIG.USE_API ? await ApiService.getMe() : (getUser(currentUser()) || {});
   let keys = Object.keys(users).sort((a,b)=> a.localeCompare(b));
