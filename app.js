@@ -1486,26 +1486,115 @@ function setup(){
   });
 
   qs('#btn-register').addEventListener('click', async ()=>{
-    const u = qs('#reg-username').value.trim(); const p = qs('#reg-password').value; const d = qs('#reg-displayname').value.trim();
-    if(u.length < 3) return showMessage('Username must be at least 3 characters', 'error');
-    if(p.length < 4) return showMessage('Password must be at least 4 characters', 'error');
-    
-    console.log('Starting registration for:', u);
-    const res = await ApiService.register(u, p, d);
+    const valid = validateRegistration();
+    if(!valid.ok){
+      showMessage(valid.firstError || 'Fix validation errors', 'error');
+      return;
+    }
+    const u = qs('#reg-username').value.trim();
+    const p = qs('#reg-password').value;
+    const d = qs('#reg-displayname').value.trim();
+    const discord = qs('#reg-discord') ? qs('#reg-discord').value.trim() : '';
+    const bio = qs('#reg-bio') ? qs('#reg-bio').value.trim() : '';
+    const avatar = (qs('#reg-avatar') && qs('#reg-avatar').dataset.preview) || '';
+
+    console.log('Starting registration for:', { u, hasAvatar: !!avatar, bioLen: bio.length });
+    const res = await ApiService.register(u, p, d, bio, avatar, discord);
     if(!res.ok) return showMessage(res.msg, 'error');
-    
+
     console.log('Registration successful, token received:', !!res.token);
-    
+
+    // If backend didn't accept bio/avatar (legacy), fallback update
+    if((bio || avatar || discord) && currentUser()){
+      const upRes = await ApiService.updateProfile(d, discord, bio, avatar);
+      if(!upRes.ok){
+        console.warn('Fallback profile update failed:', upRes.msg);
+      }
+    }
+
     // Clear the form
     qs('#register-card').classList.add('hidden');
-    qs('#reg-username').value=''; 
-    qs('#reg-password').value=''; 
+    qs('#reg-username').value='';
+    qs('#reg-password').value='';
+    if(qs('#reg-password-confirm')) qs('#reg-password-confirm').value='';
     qs('#reg-displayname').value='';
-    
-    // Update UI (user is already logged in after registration in API mode)
+    if(qs('#reg-bio')) qs('#reg-bio').value='';
+    if(qs('#reg-discord')) qs('#reg-discord').value='';
+    if(qs('#reg-avatar')){
+      qs('#reg-avatar').value='';
+      delete qs('#reg-avatar').dataset.preview;
+      qs('#reg-avatar-preview').classList.add('hidden');
+      qs('#reg-avatar-preview').src='';
+    }
+
     showMessage('Account created successfully! Welcome to MR Auctioner!', 'success');
     await renderUserState();
     await renderListings();
+  });
+
+  // Registration avatar processing
+  if(qs('#reg-avatar')){
+    qs('#reg-avatar').addEventListener('change', async (ev)=>{
+      const f = ev.target.files && ev.target.files[0];
+      if(!f) return;
+      const allowed = ['image/jpeg','image/png','image/gif','image/webp'];
+      if(!allowed.includes(f.type)) return showMessage('Avatar must be JPG/PNG/GIF/WebP', 'error');
+      try{
+        const data = await processImageFile(f, 60*1024, 200); // 60KB, max 200px
+        qs('#reg-avatar').dataset.preview = data;
+        qs('#reg-avatar-preview').src = data;
+        qs('#reg-avatar-preview').classList.remove('hidden');
+        qs('#reg-avatar-preview-wrap').classList.remove('preview-empty');
+      }catch(e){ showMessage('Failed to process avatar', 'error'); }
+    });
+  }
+
+  // Live registration validation
+  function validateRegistration(){
+    const username = qs('#reg-username').value.trim();
+    const password = qs('#reg-password').value;
+    const confirm = qs('#reg-password-confirm') ? qs('#reg-password-confirm').value : '';
+    const displayName = qs('#reg-displayname').value.trim();
+    const errors = {};
+    // Username
+    if(username.length < 3) errors.username = 'Min 3 characters';
+    if(username.length > 50) errors.username = 'Too long';
+    // Password strength
+    if(password.length < 8) errors.password = 'Min 8 characters';
+    else if(!/[0-9]/.test(password) || !/[A-Za-z]/.test(password)) errors.password = 'Include letters & numbers';
+    // Confirm
+    if(confirm !== password) errors.confirm = 'Passwords do not match';
+    // Display name
+    if(displayName && displayName.length < 3) errors.display = 'Min 3 characters';
+    if(displayName.length > 20) errors.display = 'Max 20 characters';
+
+    // Apply UI state helper
+    function setState(el, errId, ok){
+      if(!el) return;
+      const errEl = qs(errId);
+      if(ok){
+        el.classList.remove('input-invalid');
+        el.classList.add('input-valid');
+        if(errEl){ errEl.classList.remove('show'); errEl.textContent=''; }
+      }else{
+        el.classList.remove('input-valid');
+        el.classList.add('input-invalid');
+        if(errEl){ errEl.textContent = errors[errId.split('-')[1].replace('error','')] || ''; if(errEl.textContent) errEl.classList.add('show'); }
+      }
+    }
+
+    setState(qs('#reg-username'), '#reg-username-error', !errors.username);
+    setState(qs('#reg-password'), '#reg-password-error', !errors.password);
+    setState(qs('#reg-password-confirm'), '#reg-password-confirm-error', !errors.confirm);
+    setState(qs('#reg-displayname'), '#reg-displayname-error', !errors.display);
+
+    return { ok: Object.keys(errors).length === 0, firstError: Object.values(errors)[0] };
+  }
+
+  ['#reg-username','#reg-password','#reg-password-confirm','#reg-displayname','#reg-bio'].forEach(sel=>{
+    if(qs(sel)){
+      qs(sel).addEventListener('input', ()=>{ validateRegistration(); });
+    }
   });
 
   // cancel buttons for auth cards

@@ -8,16 +8,21 @@ import { getStatsCache, setStatsCache } from './cache.js';
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
-  const { email, password, displayName } = req.body || {};
+  const { email, password, displayName, bio, avatar, discord } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
     const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
     if (existing.rowCount) return res.status(409).json({ error: 'Email already in use' });
 
+    // Basic avatar size guard (base64 length) ~ <= 90KB
+    if (avatar && avatar.length > 120000) {
+      return res.status(413).json({ error: 'Avatar too large' });
+    }
+
     const password_hash = await bcrypt.hash(password, 10);
     const result = await query(
-      'INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id',
-      [email.toLowerCase(), password_hash, displayName || null]
+      'INSERT INTO users (email, password_hash, display_name, discord, bio, avatar) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [email.toLowerCase(), password_hash, displayName || null, discord || null, bio || null, avatar || null]
     );
     const userId = result.rows[0].id;
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(userId), expiresIn: '7d' });

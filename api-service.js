@@ -62,16 +62,16 @@ const ApiService = {
   },
 
   // Auth methods
-  async register(username, password, displayName) {
+  async register(username, password, displayName, bio = '', avatar = '', discord = '') {
     if (!API_CONFIG.USE_API) {
       return register(username, password, displayName);
     }
 
     try {
-      console.log('Registering user:', { email: username, displayName });
+      console.log('Registering user:', { email: username, displayName, hasAvatar: !!avatar, bioLen: bio?.length || 0, hasDiscord: !!discord });
       const data = await this.apiRequest('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email: username, password, displayName })
+        body: JSON.stringify({ email: username, password, displayName, bio, avatar, discord })
       });
       console.log('Registration successful, received token');
       // Automatically set the token after registration

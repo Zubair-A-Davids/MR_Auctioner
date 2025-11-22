@@ -94,14 +94,25 @@
       <div class="card hidden" id="register-card">
         <h2>Create Account</h2>
         <label>Username <input id="reg-username" /></label>
+        <div class="field-error" id="reg-username-error"></div>
         <label>Password <input id="reg-password" type="password" /></label>
+        <div class="field-error" id="reg-password-error"></div>
+        <label>Confirm Password <input id="reg-password-confirm" type="password" /></label>
+        <div class="field-error" id="reg-password-confirm-error"></div>
         <label>Display Name <input id="reg-displayname" maxlength="20" /></label>
+        <div class="field-error" id="reg-displayname-error"></div>
+        <label>Discord Name <input id="reg-discord" maxlength="20" placeholder="e.g. user#1234" /></label>
+        <div class="field-error" id="reg-discord-error"></div>
+        <p class="hint" style="color:red;font-weight:bold">Do not use your in-game logins. Username is for logging in, Display Name is what others will see.</p>
+          <label>Bio <textarea id="reg-bio" rows="3" maxlength="100" placeholder="Tell others about you (optional)"></textarea></label>
+          <div class="avatar-upload-row" style="margin:.5rem 0 0">
+            <div id="reg-avatar-preview-wrap" class="avatar-wrap preview-empty"><img id="reg-avatar-preview" src="" alt="avatar preview" class="avatar-img hidden" /></div>
+            <label class="btn btn-primary btn-change-avatar">Choose Avatar <input id="reg-avatar" type="file" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" /></label>
+          </div>
         <div class="form-actions">
           <button id="btn-register" class="btn btn-primary">Create account</button>
           <button id="btn-cancel-register" class="btn">Cancel</button>
         </div>
-        <p class="hint">Do not use your in-game Logins. Username is for Logging in, Display Name is what others will see.
-        </p>
       </div>
 
       <div class="card hidden" id="login-card">
