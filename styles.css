@@ -65,8 +65,8 @@ input:disabled,textarea:disabled{background:rgba(255,255,255,0.02);cursor:not-al
 .listing .pre-image p{overflow:hidden;text-overflow:ellipsis}
 .listing .pre-image .notes-text,.listing .pre-image .info-text{display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}
 .listing-footer{min-height:60px}
-@media (max-width:768px){.listing{padding:0.6rem;min-height:400px;max-height:500px}}
-@media (max-width:480px){.listing{padding:0.5rem;min-height:350px;font-size:0.9rem}}
+@media (max-width:768px){.listing{padding:0.6rem;height:480px}}
+@media (max-width:480px){.listing{padding:0.5rem;height:420px;font-size:0.9rem}}
 .listing:hover{border-color:var(--primary)}
 .listing h3{margin:.25rem 0;color:var(--primary)}
 .listing-content{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -428,6 +428,11 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 
 /* Image Modal */
 #image-modal{background:rgba(0,0,0,0.9)}
+#image-modal{z-index:10020}
+#confirm-modal{z-index:10010}
+/* Ensure price row sits at bottom of variable-height pre-image area */
+.pre-image{display:flex;flex-direction:column}
+.pre-image .price-row{margin-top:auto}
 .image-modal-content{position:relative;max-width:95vw;max-height:95vh;display:flex;align-items:center;justify-content:center;padding:3rem}
 .image-modal-close{position:absolute;top:0;right:0;background:var(--accent);color:white;border:none;font-size:1.5rem;width:2.5rem;height:2.5rem;border-radius:50%;cursor:pointer;z-index:1001;font-weight:700;line-height:1;transition:background 0.2s,transform 0.2s}
 .image-modal-close:hover{background:#ff8533;transform:scale(1.1)}
