@@ -42,6 +42,42 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Get moderation history (admin/mod only) - returns all mod actions from notifications
+// MUST be before /:id route to avoid UUID parsing error
+router.get('/mod-history', requireAuth, async (req, res) => {
+  try {
+    const isAdmin = req.user.isAdmin;
+    const isMod = req.user.isMod;
+    
+    if (!isAdmin && !isMod) {
+      return res.status(403).json({ error: 'Forbidden - Admin or Mod access required' });
+    }
+    
+    // Fetch all notifications (deletions and warnings) to show mod actions
+    const r = await query(
+      `SELECT 
+        type, 
+        item_id, 
+        item_title, 
+        item_description,
+        reason, 
+        moderator_name, 
+        created_at,
+        (SELECT display_name FROM users WHERE id = user_id) as target_user
+      FROM user_notifications 
+      WHERE type IN ('item_deleted', 'item_warned')
+      ORDER BY created_at DESC 
+      LIMIT 100`,
+      []
+    );
+    
+    return res.json(r.rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const r = await query('SELECT id, owner_id, title, description, price, image_url, item_type_id, elite, element, created_at FROM items WHERE id = $1', [req.params.id]);
@@ -248,41 +284,6 @@ router.put('/notifications/read', requireAuth, async (req, res) => {
       [req.user.id, ids]
     );
     return res.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Get moderation history (admin/mod only) - returns all mod actions from notifications
-router.get('/mod-history', requireAuth, async (req, res) => {
-  try {
-    const isAdmin = req.user.isAdmin;
-    const isMod = req.user.isMod;
-    
-    if (!isAdmin && !isMod) {
-      return res.status(403).json({ error: 'Forbidden - Admin or Mod access required' });
-    }
-    
-    // Fetch all notifications (deletions and warnings) to show mod actions
-    const r = await query(
-      `SELECT 
-        type, 
-        item_id, 
-        item_title, 
-        item_description,
-        reason, 
-        moderator_name, 
-        created_at,
-        (SELECT display_name FROM users WHERE id = user_id) as target_user
-      FROM user_notifications 
-      WHERE type IN ('item_deleted', 'item_warned')
-      ORDER BY created_at DESC 
-      LIMIT 100`,
-      []
-    );
-    
-    return res.json(r.rows);
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: 'Server error' });
