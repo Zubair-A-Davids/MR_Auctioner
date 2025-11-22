@@ -73,6 +73,7 @@
             <button id="btn-view-listings-menu" class="menu-item">View Listings</button>
             <button id="btn-my-listings" class="menu-item">My Listings</button>
             <button id="btn-my-profile" class="menu-item">My Profile</button>
+            <button id="btn-warnings" class="menu-item hidden">Warnings</button>
             <button id="btn-items-sold" class="menu-item hidden">Items Sold History</button>
             <button id="btn-admin-panel" class="menu-item hidden">Admin Panel</button>
             <button id="btn-mod-panel" class="menu-item hidden">Moderation</button>
@@ -458,6 +459,48 @@
       <div class="form-actions">
         <button id="rename-confirm" class="btn btn-primary">Confirm</button>
         <button id="rename-cancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Reason modal (for mods) -->
+  <div id="delete-reason-modal" class="modal hidden">
+    <div class="modal-inner small">
+      <h3 id="delete-reason-title">Delete Listing</h3>
+      <p class="hint" id="delete-reason-hint">Provide a reason for deleting this item:</p>
+      <label>Reason
+        <input id="delete-reason-input" type="text" maxlength="100" placeholder="Why is this item being deleted?" />
+      </label>
+      <div class="form-actions">
+        <button id="delete-reason-confirm" class="btn btn-delete">Delete</button>
+        <button id="delete-reason-cancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warning modal (for admins/mods) -->
+  <div id="warning-modal" class="modal hidden">
+    <div class="modal-inner small">
+      <h3 id="warning-title">Add Warning to Item</h3>
+      <p class="hint" id="warning-hint">Warn the seller about this item:</p>
+      <label>Warning Reason
+        <textarea id="warning-reason-input" rows="3" maxlength="200" placeholder="Describe the issue with this listing..."></textarea>
+      </label>
+      <div class="form-actions">
+        <button id="warning-confirm" class="btn btn-accent">Send Warning</button>
+        <button id="warning-cancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warnings/Notifications modal -->
+  <div id="warnings-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 800px;">
+      <h2>Warnings & Notifications</h2>
+      <p class="hint">View warnings and notifications about your listings.</p>
+      <div id="warnings-list" class="warnings-list"></div>
+      <div class="form-actions">
+        <button id="warnings-close" class="btn">Close</button>
       </div>
     </div>
   </div>

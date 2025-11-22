@@ -97,14 +97,21 @@ router.put('/:id', requireAuth, async (req, res) => {
 
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
+    const { reason } = req.body || {};
     const ownerCheck = await query('SELECT owner_id, title, description, price, item_type_id, elite, element, created_at FROM items WHERE id = $1', [req.params.id]);
     if (!ownerCheck.rowCount) return res.status(404).json({ error: 'Not found' });
     
-    // Allow deletion if user is owner OR admin
+    // Allow deletion if user is owner OR admin OR mod
     const isOwner = String(ownerCheck.rows[0].owner_id) === String(req.user.id);
     const isAdmin = req.user.isAdmin === true;
+    const isMod = req.user.isMod === true;
     
-    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+    if (!isOwner && !isAdmin && !isMod) return res.status(403).json({ error: 'Forbidden' });
+    
+    // Mods must provide reason when deleting other's items
+    if ((isAdmin || isMod) && !isOwner && !reason) {
+      return res.status(400).json({ error: 'Reason required for moderator deletion' });
+    }
     
     const item = ownerCheck.rows[0];
     
@@ -113,6 +120,17 @@ router.delete('/:id', requireAuth, async (req, res) => {
       'INSERT INTO items_sold (original_item_id, owner_id, title, description, price, item_type_id, elite, element, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
       [req.params.id, item.owner_id, item.title, item.description, item.price, item.item_type_id, item.elite, item.element, item.created_at]
     );
+    
+    // Send notification if mod/admin deleted someone else's item
+    if ((isAdmin || isMod) && !isOwner && reason) {
+      const modInfo = await query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+      const modName = modInfo.rows[0]?.display_name || 'Moderator';
+      
+      await query(
+        'INSERT INTO user_notifications (user_id, type, item_id, item_title, item_description, reason, moderator_name) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [item.owner_id, 'item_deleted', req.params.id, item.title, item.description, reason, modName]
+      );
+    }
     
     await query('DELETE FROM items WHERE id = $1', [req.params.id]);
     
@@ -152,4 +170,124 @@ router.get('/sold/history', requireAuth, async (req, res) => {
   }
 });
 
+// Add warning to item (admin/mod only)
+router.post('/:id/warnings', requireAuth, async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    if (!reason) return res.status(400).json({ error: 'Reason required' });
+    
+    // Check permissions
+    if (!req.user.isAdmin && !req.user.isMod) {
+      return res.status(403).json({ error: 'Admin or Moderator access required' });
+    }
+    
+    // Verify item exists and get owner
+    const itemCheck = await query('SELECT owner_id, title FROM items WHERE id = $1', [req.params.id]);
+    if (!itemCheck.rowCount) return res.status(404).json({ error: 'Item not found' });
+    
+    const item = itemCheck.rows[0];
+    
+    // Create warning
+    const r = await query(
+      'INSERT INTO item_warnings (item_id, moderator_id, reason) VALUES ($1, $2, $3) RETURNING id, created_at',
+      [req.params.id, req.user.id, reason]
+    );
+    
+    // Send notification to item owner
+    const modInfo = await query('SELECT display_name FROM users WHERE id = $1', [req.user.id]);
+    const modName = modInfo.rows[0]?.display_name || 'Moderator';
+    
+    await query(
+      'INSERT INTO user_notifications (user_id, type, item_id, item_title, item_description, reason, moderator_name) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [item.owner_id, 'item_warned', req.params.id, item.title, item.description, reason, modName]
+    );
+    
+    return res.status(201).json({ id: r.rows[0].id, created_at: r.rows[0].created_at });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get warnings for an item
+router.get('/:id/warnings', async (req, res) => {
+  try {
+    const r = await query(
+      'SELECT w.id, w.reason, w.created_at, u.display_name as moderator_name FROM item_warnings w JOIN users u ON u.id = w.moderator_id WHERE w.item_id = $1 ORDER BY w.created_at DESC',
+      [req.params.id]
+    );
+    return res.json(r.rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get user's notifications
+router.get('/notifications/me', requireAuth, async (req, res) => {
+  try {
+    const r = await query(
+      'SELECT id, type, item_id, item_title, item_description, reason, moderator_name, is_read, created_at FROM user_notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [req.user.id]
+    );
+    return res.json(r.rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Mark notifications as read
+router.put('/notifications/read', requireAuth, async (req, res) => {
+  try {
+    const { ids } = req.body || {};
+    if (!ids || !Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+    
+    await query(
+      'UPDATE user_notifications SET is_read = true WHERE user_id = $1 AND id = ANY($2)',
+      [req.user.id, ids]
+    );
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get moderation history (admin/mod only) - returns all mod actions from notifications
+router.get('/mod-history', requireAuth, async (req, res) => {
+  try {
+    const isAdmin = req.user.isAdmin;
+    const isMod = req.user.isMod;
+    
+    if (!isAdmin && !isMod) {
+      return res.status(403).json({ error: 'Forbidden - Admin or Mod access required' });
+    }
+    
+    // Fetch all notifications (deletions and warnings) to show mod actions
+    const r = await query(
+      `SELECT 
+        type, 
+        item_id, 
+        item_title, 
+        item_description,
+        reason, 
+        moderator_name, 
+        created_at,
+        (SELECT display_name FROM users WHERE id = user_id) as target_user
+      FROM user_notifications 
+      WHERE type IN ('item_deleted', 'item_warned')
+      ORDER BY created_at DESC 
+      LIMIT 100`,
+      []
+    );
+    
+    return res.json(r.rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;
+

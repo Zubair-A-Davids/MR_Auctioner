@@ -153,6 +153,52 @@ async function openListingDetail(id){
     requestAnimationFrame(()=> showFlex(qs('#listing-detail-modal')));
     qs('#listing-detail-close').onclick = () => hideEl(qs('#listing-detail-modal'));
     currentDetailIndex = currentRenderedListingIds.findIndex(x => String(x) === String(l.id));
+    
+    // Add warning button for admins/mods (after detail content loads)
+    const user = await getUserData();
+    if(user && (user.isAdmin || user.isMod)) {
+      // Check if button already exists
+      let warnBtn = qs('#listing-detail-warn-btn');
+      if(!warnBtn) {
+        const actionsDiv = qs('#listing-detail-modal .form-actions');
+        warnBtn = document.createElement('button');
+        warnBtn.id = 'listing-detail-warn-btn';
+        warnBtn.className = 'btn btn-accent';
+        warnBtn.textContent = 'Add Warning';
+        warnBtn.type = 'button';
+        actionsDiv.insertBefore(warnBtn, actionsDiv.firstChild);
+      }
+      warnBtn.onclick = () => showWarningModal(l.id, l.title);
+    }
+    
+    // Fetch and display warnings for this item
+    if(API_CONFIG.USE_API) {
+      const warnings = await ApiService.getItemWarnings(id);
+      let warnSection = qs('#listing-detail-warnings');
+      if(warnings && warnings.length > 0) {
+        if(!warnSection) {
+          warnSection = document.createElement('div');
+          warnSection.id = 'listing-detail-warnings';
+          warnSection.style.marginTop = '1rem';
+          warnSection.style.padding = '.75rem';
+          warnSection.style.background = 'rgba(255,152,0,0.1)';
+          warnSection.style.border = '1px solid rgba(255,152,0,0.3)';
+          warnSection.style.borderRadius = '6px';
+          const notesEl = qs('#listing-detail-notes');
+          notesEl.parentNode.insertBefore(warnSection, notesEl.nextSibling);
+        }
+        warnSection.innerHTML = `<strong style="color:#ff9800">⚠ Warnings (${warnings.length}):</strong>`;
+        warnings.forEach(w => {
+          const wDiv = document.createElement('div');
+          wDiv.style.marginTop = '.5rem';
+          wDiv.style.fontSize = '.9rem';
+          wDiv.innerHTML = `<p class="hint"><strong>${escapeHtml(w.moderator_name)}:</strong> ${escapeHtml(w.reason)}</p><p class="hint" style="font-size:.75rem;color:var(--text-muted)">${timeAgo(w.created_at)}</p>`;
+          warnSection.appendChild(wDiv);
+        });
+      } else if(warnSection) {
+        warnSection.remove();
+      }
+    }
   } catch(err){
     console.error('openListingDetail error', err);
     showMessage('Failed to open listing detail','error');
@@ -456,6 +502,7 @@ async function renderUserState(){
   const btnMod = qs('#btn-mod-panel');
   const btnModHistory = qs('#btn-mod-history');
   const btnItemsSold = qs('#btn-items-sold');
+  const btnWarnings = qs('#btn-warnings');
   const navbarAvatarWrap = qs('#navbar-avatar-wrap');
   const navbarAvatar = qs('#navbar-avatar');
   
@@ -503,6 +550,7 @@ async function renderUserState(){
     if(btnMod) (me.isAdmin || me.isMod) ? btnMod.classList.remove('hidden') : btnMod.classList.add('hidden');
     if(btnModHistory) (me.isAdmin || me.isMod) ? btnModHistory.classList.remove('hidden') : btnModHistory.classList.add('hidden');
     if(btnItemsSold) btnItemsSold.classList.remove('hidden');
+    if(btnWarnings) btnWarnings.classList.remove('hidden');
     // only show hamburger/menu when signed in; creation area is shown via SELL action
     if(btnHamburger) btnHamburger.classList.remove('hidden');
     if(hamburgerMenu) hamburgerMenu.classList.add('hidden');
@@ -521,6 +569,7 @@ async function renderUserState(){
     if(btnMod) btnMod.classList.add('hidden');
     if(btnModHistory) btnModHistory.classList.add('hidden');
     if(btnItemsSold) btnItemsSold.classList.add('hidden');
+    if(btnWarnings) btnWarnings.classList.add('hidden');
     qs('#create-listing-area').classList.add('hidden');
     qs('#landing').classList.remove('hidden');
     qs('#listings-section').classList.remove('hidden');
@@ -630,7 +679,9 @@ async function appendListingBatch(start, end) {
   const container = virtualScrollContainer || qs('#listings');
   const batch = allListings.slice(start, end);
   
-  const isAdmin = await isAdminUser();
+  const user = await getUserData();
+  const isAdmin = user?.isAdmin || false;
+  const isMod = user?.isMod || false;
   let currentUserId = null;
   
   if(currentUser() && API_CONFIG.USE_API) {
@@ -641,8 +692,9 @@ async function appendListingBatch(start, end) {
   }
   
   batch.forEach(l => {
-    renderSingleListing(l, container, isAdmin, currentUserId);
+    renderSingleListing(l, container, isAdmin, isMod, currentUserId);
   });
+
   
   // Attach click listeners to new batch
   attachListingClickListeners(container);
@@ -652,7 +704,9 @@ async function renderAllListings(listings, container) {
   currentRenderedListingIds = [];
   
   // Fetch user info once for all listings (performance optimization)
-  const isAdmin = await isAdminUser();
+  const user = await getUserData();
+  const isAdmin = user?.isAdmin || false;
+  const isMod = user?.isMod || false;
   let currentUserId = null;
   
   if(currentUser() && API_CONFIG.USE_API) {
@@ -663,14 +717,27 @@ async function renderAllListings(listings, container) {
   }
   
   listings.forEach(l => {
-    renderSingleListing(l, container, isAdmin, currentUserId);
+    renderSingleListing(l, container, isAdmin, isMod, currentUserId);
   });
   
   // Attach click listeners to entire listing cards for detail modal (faster UX)
   attachListingClickListeners(container);
 }
 
-function renderSingleListing(l, container, isAdmin, currentUserId) {
+async function getUserData() {
+  if(!currentUser()) return null;
+  if(API_CONFIG.USE_API) {
+    return await ApiService.getMe();
+  }
+  const users = loadJSON(LS_USERS, {});
+  const userData = users[currentUser()];
+  return userData ? {
+    isAdmin: userData.isAdmin || false,
+    isMod: userData.isMod || false
+  } : null;
+}
+
+function renderSingleListing(l, container, isAdmin, isMod, currentUserId) {
   currentRenderedListingIds.push(String(l.id));
   const el = document.createElement('div'); el.className='listing card'; el.setAttribute('data-id', String(l.id));
   const fullDate = new Date(l.createdAt).toLocaleString();
@@ -761,18 +828,29 @@ function renderSingleListing(l, container, isAdmin, currentUserId) {
     }
   }
   
-  // Add controls immediately if user is owner or admin
-  if(isOwner || isAdmin){
+  // Add controls immediately if user is owner, admin, or mod
+  if(isOwner || isAdmin || isMod){
     const controls = document.createElement('div'); controls.className='controls';
-    const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent'; btnEdit.type='button';
+    
+    // Only admins can edit (or owners editing their own)
+    if(isAdmin || isOwner) {
+      const btnEdit = document.createElement('button'); btnEdit.textContent='Edit'; btnEdit.className='btn btn-small btn-accent'; btnEdit.type='button';
+      btnEdit.addEventListener('click', async (e)=> { e.stopPropagation(); await startEditListing(l.id); });
+      controls.appendChild(btnEdit);
+    }
+    
     const btnDel = document.createElement('button'); btnDel.textContent='Delete'; btnDel.className='btn btn-small btn-delete'; btnDel.type='button';
-    btnEdit.addEventListener('click', async (e)=> { e.stopPropagation(); await startEditListing(l.id); });
     btnDel.addEventListener('click', async (e)=> {
       e.stopPropagation();
-      const msg = `Delete this listing${isAdmin && !isOwner ? ' by '+(l.sellerName||l.seller) : ''}?`;
-      showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
+      // Mods must provide reason when deleting others' items
+      if((isMod || isAdmin) && !isOwner) {
+        showDeleteReasonModal(l.id, l.title, l.sellerName || l.seller);
+      } else {
+        const msg = `Delete this listing?`;
+        showConfirmModal(msg, async ()=> { await deleteListing(l.id); await renderListings(); });
+      }
     });
-    controls.appendChild(btnEdit); controls.appendChild(btnDel);
+    controls.appendChild(btnDel);
     footerDiv.appendChild(controls);
   }
     
@@ -795,9 +873,9 @@ function attachListingClickListeners(container) {
   });
 }
 
-async function deleteListing(id){
+async function deleteListing(id, reason = null){
   if (API_CONFIG.USE_API) {
-    const result = await ApiService.deleteListing(id);
+    const result = await ApiService.deleteListing(id, reason);
     await renderSiteStats(); // Update stats after deletion
     return result;
   }
@@ -1343,6 +1421,15 @@ function setup(){
       updateSellerFilterChip(); 
       await renderListings(); 
     }); 
+  }
+  
+  // Warnings menu action
+  const btnWarnings = qs('#btn-warnings');
+  if(btnWarnings) {
+    btnWarnings.addEventListener('click', async () => {
+      hideEl(qs('#hamburger-menu'));
+      await showWarningsModal();
+    });
   }
   
   // Clear seller filter chip
@@ -2455,28 +2542,46 @@ function renderItemsSoldPage(userHistory){
 }
 
 // Moderation History
-function openModHistory(){
-  const history = loadJSON(LS_MOD_HISTORY, []);
+async function openModHistory(){
   const container = qs('#mod-history-list');
   if(!container) return;
+  
+  container.innerHTML = '<p class="hint">Loading...</p>';
+  showFlex(qs('#mod-history-modal'));
+  
+  let history = [];
+  
+  if(API_CONFIG.USE_API) {
+    // In API mode, fetch moderation history from server
+    try {
+      history = await ApiService.getModHistory();
+    } catch(e) {
+      console.error('Failed to load mod history:', e);
+      container.innerHTML = '<p class="hint error">Failed to load moderation history.</p>';
+      return;
+    }
+  } else {
+    // In localStorage mode, use local storage
+    history = loadJSON(LS_MOD_HISTORY, []);
+  }
   
   if(history.length === 0){
     container.innerHTML = '<p class="hint">No moderation actions yet.</p>';
   } else {
     let html = '';
     history.forEach(entry => {
-      const timestamp = new Date(entry.timestamp).toLocaleString();
-      const actionLabel = entry.action.replace(/_/g, ' ');
+      const timestamp = new Date(entry.timestamp || entry.created_at).toLocaleString();
+      const actionLabel = (entry.action || entry.type || '').replace(/_/g, ' ').toUpperCase();
+      const target = entry.targetUser || entry.target_user || entry.item_title || 'Unknown';
+      const mod = entry.moderator || entry.moderator_name || 'Unknown';
       html += `<div class="history-item">
         <strong class="mod-action">${escapeHtml(actionLabel)}</strong>
-        <p class="hint">Target: ${escapeHtml(entry.targetUser)} | By: ${escapeHtml(entry.moderator)}</p>
+        <p class="hint">Target: ${escapeHtml(target)} | By: ${escapeHtml(mod)}</p>
         <p class="hint">${timestamp}${entry.reason ? ' | ' + escapeHtml(entry.reason) : ''}</p>
       </div>`;
     });
     container.innerHTML = html;
   }
-  
-  showFlex(qs('#mod-history-modal'));
 }
 
 // Show toast message to user
@@ -2578,6 +2683,104 @@ if ('serviceWorker' in navigator) {
         console.warn('⚠️ Service Worker registration failed:', error);
       });
   });
+}
+
+// Delete reason modal for mods
+function showDeleteReasonModal(itemId, itemTitle, sellerName) {
+  const modal = qs('#delete-reason-modal');
+  const input = qs('#delete-reason-input');
+  const hint = qs('#delete-reason-hint');
+  hint.textContent = `Deleting "${itemTitle}" by ${sellerName}. Provide a reason:`;
+  input.value = '';
+  showFlex(modal);
+  
+  qs('#delete-reason-confirm').onclick = async () => {
+    const reason = input.value.trim();
+    if(!reason) return showMessage('Reason required', 'error');
+    hideEl(modal);
+    await deleteListing(itemId, reason);
+    await renderListings();
+    showMessage('Item deleted and owner notified', 'success');
+  };
+  
+  qs('#delete-reason-cancel').onclick = () => hideEl(modal);
+}
+
+// Warning modal for admins/mods
+async function showWarningModal(itemId, itemTitle) {
+  const modal = qs('#warning-modal');
+  const input = qs('#warning-reason-input');
+  const hint = qs('#warning-hint');
+  hint.textContent = `Add warning to "${itemTitle}":`;
+  input.value = '';
+  showFlex(modal);
+  
+  qs('#warning-confirm').onclick = async () => {
+    const reason = input.value.trim();
+    if(!reason) return showMessage('Warning reason required', 'error');
+    hideEl(modal);
+    
+    const result = await ApiService.addWarningToItem(itemId, reason);
+    if(!result.ok) return showMessage(result.msg || 'Failed to add warning', 'error');
+    
+    showMessage('Warning sent to seller', 'success');
+    // Reload listing detail to show warning
+    await openListingDetail(itemId);
+  };
+  
+  qs('#warning-cancel').onclick = () => hideEl(modal);
+}
+
+// Warnings/Notifications modal
+async function showWarningsModal() {
+  const modal = qs('#warnings-modal');
+  const list = qs('#warnings-list');
+  list.innerHTML = '<p class="hint">Loading...</p>';
+  showFlex(modal);
+  
+  const notifications = await ApiService.getUserNotifications();
+  
+  if(!notifications || notifications.length === 0) {
+    list.innerHTML = '<p class="hint">No warnings or notifications</p>';
+    return;
+  }
+  
+  list.innerHTML = '';
+  const unreadIds = [];
+  
+  notifications.forEach(n => {
+    const div = document.createElement('div');
+    div.className = 'warning-item' + (!n.is_read ? ' unread' : '');
+    
+    let typeLabel = '';
+    if(n.type === 'item_deleted') typeLabel = '<span class="warning-type deleted">DELETED</span>';
+    else if(n.type === 'item_warned') typeLabel = '<span class="warning-type warned">WARNING</span>';
+    
+    const timeStr = timeAgo(n.created_at);
+    
+    const descHtml = n.item_description ? `<p class="hint" style="font-style:italic;color:#888;margin-top:.25rem">${escapeHtml(n.item_description)}</p>` : '';
+    
+    div.innerHTML = `
+      ${typeLabel}
+      <strong>${escapeHtml(n.item_title || 'Unknown Item')}</strong>
+      ${descHtml}
+      <p class="hint"><strong>Moderator:</strong> ${escapeHtml(n.moderator_name)}</p>
+      <p class="hint"><strong>Reason:</strong> ${escapeHtml(n.reason)}</p>
+      <p class="hint" style="font-size:.75rem;color:var(--text-muted)">${timeStr}</p>
+    `;
+    
+    list.appendChild(div);
+    
+    if(!n.is_read) unreadIds.push(n.id);
+  });
+  
+  // Mark all as read
+  if(unreadIds.length > 0) {
+    await ApiService.markNotificationsRead(unreadIds);
+  }
+  
+  const closeBtn = qs('#warnings-close');
+  if(closeBtn) closeBtn.onclick = () => hideEl(modal);
 }
 
 // On load

@@ -340,17 +340,95 @@ const ApiService = {
     }
   },
 
-  async deleteListing(id) {
+  async deleteListing(id, reason = null) {
     if (!API_CONFIG.USE_API) {
       return deleteListing(id);
     }
 
     try {
-      await this.apiRequest(`/items/${id}`, { method: 'DELETE' });
+      await this.apiRequest(`/items/${id}`, { 
+        method: 'DELETE',
+        body: reason ? JSON.stringify({ reason }) : undefined
+      });
       return true;
     } catch (e) {
       console.error('Failed to delete listing:', e);
       return false;
+    }
+  },
+
+  async addWarningToItem(itemId, reason) {
+    if (!API_CONFIG.USE_API) {
+      return { ok: false, msg: 'API mode required' };
+    }
+
+    try {
+      await this.apiRequest(`/items/${itemId}/warnings`, {
+        method: 'POST',
+        body: JSON.stringify({ reason })
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, msg: e.message };
+    }
+  },
+
+  async getItemWarnings(itemId) {
+    if (!API_CONFIG.USE_API) {
+      return [];
+    }
+
+    try {
+      const data = await this.apiRequest(`/items/${itemId}/warnings`);
+      return data;
+    } catch (e) {
+      console.error('Failed to get item warnings:', e);
+      return [];
+    }
+  },
+
+  async getUserNotifications() {
+    if (!API_CONFIG.USE_API) {
+      return [];
+    }
+
+    try {
+      const data = await this.apiRequest('/items/notifications/me');
+      return data;
+    } catch (e) {
+      console.error('Failed to get notifications:', e);
+      return [];
+    }
+  },
+
+  async markNotificationsRead(ids) {
+    if (!API_CONFIG.USE_API) {
+      return { ok: true };
+    }
+
+    try {
+      await this.apiRequest('/items/notifications/read', {
+        method: 'PUT',
+        body: JSON.stringify({ ids })
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, msg: e.message };
+    }
+  },
+
+  // Get moderation history (admin/mod only)
+  async getModHistory() {
+    if (!API_CONFIG.USE_API) {
+      return [];
+    }
+
+    try {
+      const data = await this.apiRequest('/items/mod-history');
+      return data || [];
+    } catch (e) {
+      console.error('getModHistory error:', e);
+      return [];
     }
   },
 

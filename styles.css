@@ -152,6 +152,21 @@ small{color:var(--text-muted)}
 .avatar-wrap.preview-empty{background:rgba(255,255,255,0.05)}
 #reg-avatar-preview-wrap.avatar-wrap{width:64px;height:64px}
 
+/* Warning badge on listings */
+.warning-badge-corner{position:absolute;top:48px;left:-8px;width:22px;height:22px;background:#ff9800;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;z-index:10;filter:drop-shadow(0 2px 6px rgba(255,152,0,0.6));animation:warning-pulse 2s ease-in-out infinite;cursor:help}
+@keyframes warning-pulse{0%,100%{filter:drop-shadow(0 2px 6px rgba(255,152,0,0.6))}50%{filter:drop-shadow(0 2px 10px rgba(255,152,0,0.9))}}
+
+/* Warnings list */
+.warnings-list{max-height:60vh;overflow:auto;border:1px solid var(--border-color);border-radius:8px;padding:.5rem;margin:.5rem 0}
+.warning-item{background:var(--bg-dark);border:1px solid var(--border-color);border-radius:6px;padding:.75rem;margin-bottom:.5rem}
+.warning-item.unread{border-color:var(--accent);background:rgba(255,107,0,0.05)}
+.warning-item:last-child{margin-bottom:0}
+.warning-item strong{color:var(--primary)}
+.warning-item .warning-type{display:inline-block;padding:.2rem .5rem;border-radius:999px;font-size:.75rem;font-weight:700;margin-right:.5rem}
+.warning-type.deleted{background:rgba(255,107,0,0.15);color:var(--accent);border:1px solid rgba(255,107,0,0.35)}
+.warning-type.warned{background:rgba(255,152,0,0.15);color:#ff9800;border:1px solid rgba(255,152,0,0.35)}
+.warning-item .hint{margin-top:.25rem}
+
 #item-image-preview {
   max-width: 100%;
   max-height: 400px;
@@ -430,6 +445,7 @@ footer{text-align:center;padding:1rem;color:var(--text-muted);font-size:.85rem}
 #image-modal{background:rgba(0,0,0,0.9)}
 #image-modal{z-index:10020}
 #confirm-modal{z-index:10010}
+#warning-modal{z-index:10005}
 /* Ensure price row sits at bottom of variable-height pre-image area */
 .pre-image{display:flex;flex-direction:column}
 .pre-image .price-row{margin-top:auto}
