@@ -1356,6 +1356,10 @@ function setup(){
   const btnModHistoryClose = qs('#mod-history-close');
   if(btnModHistoryClose){ btnModHistoryClose.addEventListener('click', ()=> hideEl(qs('#mod-history-modal'))); }
 
+  // Warnings modal
+  const btnWarningsClose = qs('#warnings-close');
+  if(btnWarningsClose){ btnWarningsClose.addEventListener('click', ()=> hideEl(qs('#warnings-modal'))); }
+
   // Filter toggle
   const toggleFilters = qs('#toggle-filters');
   const filterContent = qs('#filter-content');
@@ -2778,9 +2782,6 @@ async function showWarningsModal() {
   if(unreadIds.length > 0) {
     await ApiService.markNotificationsRead(unreadIds);
   }
-  
-  const closeBtn = qs('#warnings-close');
-  if(closeBtn) closeBtn.onclick = () => hideEl(modal);
 }
 
 // On load
