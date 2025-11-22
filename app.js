@@ -1172,7 +1172,45 @@ function setup(){
   // Item type selector
   const btnOpenItemTypes = qs('#btn-open-item-types');
   const closeItemModal = qs('#close-item-modal');
-  if(btnOpenItemTypes) btnOpenItemTypes.addEventListener('click', ()=>{ renderItemTypeModal(); showFlex(qs('#item-type-modal')); });
+  if(btnOpenItemTypes) btnOpenItemTypes.addEventListener('click', () => {
+    renderItemTypeModal();
+    qs('#item-type-modal').classList.remove('hidden');
+  });
+
+  // How to button and modal
+  qs('#btn-how-to')?.addEventListener('click', () => {
+    qs('#how-to-modal').classList.remove('hidden');
+  });
+
+  // Close how to modal
+  qs('#close-how-to')?.addEventListener('click', () => {
+    qs('#how-to-modal').classList.add('hidden');
+  });
+
+  // Close modal when clicking outside
+  qs('#how-to-modal')?.addEventListener('click', (e) => {
+    if (e.target === qs('#how-to-modal')) {
+      qs('#how-to-modal').classList.add('hidden');
+    }
+  });
+
+  // Basic Rules button and modal
+  qs('#btn-rules')?.addEventListener('click', () => {
+    qs('#rules-modal').classList.remove('hidden');
+  });
+
+  // Close rules modal
+  qs('#close-rules')?.addEventListener('click', () => {
+    qs('#rules-modal').classList.add('hidden');
+  });
+
+  // Close rules modal when clicking outside
+  qs('#rules-modal')?.addEventListener('click', (e) => {
+    if (e.target === qs('#rules-modal')) {
+      qs('#rules-modal').classList.add('hidden');
+    }
+  });
+
   if(closeItemModal) closeItemModal.addEventListener('click', ()=> hideEl(qs('#item-type-modal')));
 
   // Confirm modal handlers
@@ -2475,10 +2513,11 @@ async function openItemsSoldHistoryForUser(username){
   let displayName = username;
   
   if(API_CONFIG.USE_API) {
-    // Use API to get items sold history
-    userHistory = await ApiService.getItemsSoldHistory();
-    const me = await ApiService.getMe();
-    if(me) displayName = me.displayName || me.email;
+    // Use API to get the target user's sold items history
+    userHistory = await ApiService.getItemsSoldHistory(username);
+    // Get the target user's display name
+    const targetUser = await ApiService.getUserProfile(username);
+    if(targetUser) displayName = targetUser.displayName || username;
   } else {
     // Use localStorage
     const history = loadJSON(LS_ITEMS_SOLD, {});

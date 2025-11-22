@@ -71,8 +71,9 @@
           <div id="hamburger-menu" class="hamburger-menu hidden">
             <button id="btn-sell-item" class="menu-item">Sell an item</button>
             <button id="btn-view-listings-menu" class="menu-item">View Listings</button>
-            <button id="btn-my-listings" class="menu-item">My Listings</button>
-            <button id="btn-my-profile" class="menu-item">My Profile</button>
+            <li><a href="#" id="nav-listings" class="nav-link">Marketplace</a></li>
+            <li><a href="#" id="nav-giveaways" class="nav-link" style="color: #00d9ff; display: flex; align-items: center; gap: 8px;"><i class="icon-gift" style="font-size: 1.1em;"></i> Giveaways</a></li>
+            <li><a href="#" id="nav-profile" class="nav-link">My Profile</a></li>
             <button id="btn-warnings" class="menu-item hidden">Warnings</button>
             <button id="btn-items-sold" class="menu-item hidden">Items Sold History</button>
             <button id="btn-admin-panel" class="menu-item hidden">Admin Panel</button>
@@ -129,7 +130,11 @@
 
     <section id="create-listing-area" class="card hidden">
       <h2>Create Listing</h2>
-      <button id="btn-open-item-types" class="btn btn-primary">Browse Item Types</button>
+      <div class="button-group" style="display: flex; gap: 10px; margin-bottom: 1rem;">
+        <button id="btn-open-item-types" class="btn btn-primary">Browse Item Types</button>
+        <button id="btn-how-to" class="btn btn-accent">How to</button>
+        <button id="btn-rules" class="btn btn-accent" style="background-color: #4a4a4a;">Basic Rules</button>
+      </div>
       <label>Item name <input id="item-title" maxlength="30" placeholder="Enter item name or select from Browse Item Types..." /></label>
       <label>Item Type Description (read-only) <textarea id="item-type-desc" disabled class="disabled-input"></textarea></label>
       <label>Your Listing Description <input id="item-desc" maxlength="40" placeholder="Add details about this specific listing..." /></label>
@@ -302,6 +307,141 @@
 </section>
 
   </main>
+
+  <!-- Giveaways Section -->
+  <section id="giveaways-section" class="card hidden" style="background: linear-gradient(135deg, rgba(0, 33, 51, 0.8), rgba(0, 24, 38, 0.9)); border: 1px solid rgba(0, 217, 255, 0.2); border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); margin: 1.5rem 0;">
+    <div class="card-header" style="padding: 1.25rem; border-bottom: 1px solid rgba(0, 217, 255, 0.1); display: flex; justify-content: space-between; align-items: center;">
+      <h2 style="margin: 0; color: #00d9ff; font-size: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+        <i class="icon-gift"></i> Active Giveaways
+      </h2>
+      <button id="create-giveaway-btn" class="btn btn-primary" style="display: none; background: linear-gradient(135deg, #00a8ff, #0097e6); border: none; padding: 0.5rem 1.25rem; border-radius: 4px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+        <i class="icon-plus" style="margin-right: 6px;"></i> Create Giveaway
+      </button>
+    </div>
+    <div id="giveaways-list" class="listings-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; padding: 1.25rem;">
+      <div class="no-giveaways" style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: rgba(255, 255, 255, 0.6);">
+        <i class="icon-gift" style="font-size: 2rem; margin-bottom: 1rem; display: block; color: rgba(0, 217, 255, 0.5);"></i>
+        <p>No active giveaways at the moment. Check back later!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Create Giveaway Modal -->
+  <div id="create-giveaway-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 600px; background: linear-gradient(135deg, rgba(0, 33, 51, 0.95), rgba(0, 24, 38, 0.98)); border: 1px solid rgba(0, 217, 255, 0.2); border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);">
+      <div class="modal-header" style="padding: 1.25rem; border-bottom: 1px solid rgba(0, 217, 255, 0.1); display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0; color: #00d9ff; font-size: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+          <i class="icon-gift"></i> Create New Giveaway
+        </h2>
+        <button class="close-modal" style="background: none; border: none; color: rgba(255, 255, 255, 0.6); font-size: 1.5rem; cursor: pointer; transition: color 0.2s; line-height: 1;">&times;</button>
+      </div>
+      <form id="create-giveaway-form" style="padding: 1.5rem;">
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="giveaway-title" style="display: block; margin-bottom: 0.5rem; color: #00d9ff; font-weight: 500;">Title</label>
+          <input type="text" id="giveaway-title" required style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(0, 217, 255, 0.3); border-radius: 4px; color: white; font-size: 1rem; transition: all 0.2s;">
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="giveaway-description" style="display: block; margin-bottom: 0.5rem; color: #00d9ff; font-weight: 500;">Description</label>
+          <textarea id="giveaway-description" rows="3" required style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(0, 217, 255, 0.3); border-radius: 4px; color: white; font-size: 1rem; resize: vertical; min-height: 100px;"></textarea>
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label style="display: block; margin-bottom: 0.5rem; color: #00d9ff; font-weight: 500;">Item to Give Away</label>
+          <div id="giveaway-item-selector" style="display: flex; align-items: center; gap: 1rem;">
+            <button type="button" id="select-giveaway-item" class="btn btn-outline" style="background: transparent; border: 1px solid #00d9ff; color: #00d9ff; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; transition: all 0.2s; white-space: nowrap;">
+              <i class="icon-search" style="margin-right: 6px;"></i> Select Item
+            </button>
+            <div id="selected-giveaway-item" style="flex: 1; min-height: 50px; background: rgba(0, 0, 0, 0.2); border: 1px dashed rgba(0, 217, 255, 0.3); border-radius: 4px; display: flex; align-items: center; justify-content: center; padding: 0.5rem; color: rgba(255, 255, 255, 0.5); font-size: 0.9rem;">
+              No item selected
+            </div>
+          </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+          <div class="form-group">
+            <label for="giveaway-duration" style="display: block; margin-bottom: 0.5rem; color: #00d9ff; font-weight: 500;">Duration (hours)</label>
+            <input type="number" id="giveaway-duration" min="1" max="168" value="24" style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(0, 217, 255, 0.3); border-radius: 4px; color: white;">
+          </div>
+          <div class="form-group">
+            <label for="giveaway-max-entries" style="display: block; margin-bottom: 0.5rem; color: #00d9ff; font-weight: 500;">Max Entries (0 = unlimited)</label>
+            <input type="number" id="giveaway-max-entries" min="0" value="0" style="width: 100%; padding: 0.75rem; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(0, 217, 255, 0.3); border-radius: 4px; color: white;">
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(0, 217, 255, 0.1);">
+          <button type="button" id="cancel-giveaway" class="btn btn-secondary" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: white; padding: 0.5rem 1.25rem; border-radius: 4px; cursor: pointer; transition: all 0.2s;">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #00a8ff, #0097e6); border: none; padding: 0.5rem 1.5rem; border-radius: 4px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+            <i class="icon-gift" style="margin-right: 6px;"></i> Create Giveaway
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- How To Modal -->
+  <div id="how-to-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 600px;">
+      <h2>How to Create a Listing</h2>
+      <div class="how-to-content" style="max-height: 70vh; overflow-y: auto; padding-right: 1rem;">
+        <ol>
+          <li>Click "Browse Item Types" to select a default item (these will have the possible MAX stats automatically entered)</li>
+          <li>Enter a Listing Description. Use #(StatAmount)+TypeOfStat -> Examples: #24melee #24distance #24magic</li>
+          <li>Select a Price, whether an Item is Elite, and an Enchant in the Element drop down box.</li>
+          <li>You can upload a Screenshot of the item (optional but recommended for faster sales)</li>
+          <li>Click "Create Listing" when you're done</li>
+        </ol>
+        <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1.5rem;">
+          <div>
+            <h3>Create Listing</h3>
+            <img src="info1.jpg" alt="Create Listing Example" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border-color);">
+          </div>
+          <div>
+            <h3>View Active Listings</h3>
+            <p style="margin-top: 0.5rem; color: #a0a0a0;">You can double tap their screenshots to view them better</p>
+            <img src="info2.webp" alt="View Listings Example" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border-color);">
+          </div>
+          <div>
+            <h3>Seller Profile</h3>
+            <p style="margin-top: 0.5rem; color: #a0a0a0;">Click on the Seller's Name to open their profile. From here you can see all the Items for sale from the Seller and their Sold Items History. Double click their Discord Name to copy it.</p>
+            <img src="info3.webp" alt="Seller Profile Example" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border-color);">
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+        <button id="close-how-to" class="btn btn-primary">Got it!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Basic Rules Modal -->
+  <div id="rules-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 600px;">
+      <h2>Basic Rules</h2>
+      <div class="rules-content" style="max-height: 70vh; overflow-y: auto; padding-right: 1rem; color: #e0e0e0; line-height: 1.6;">
+        <p>MR Auctioner follows the same rules as <a href="https://miragerealms.co.uk/support/knowledgebase.php?article=5" target="_blank" style="color: #00d9ff; text-decoration: none;">Mirage Realms</a>.</p>
+        <p>These are some basic rules:</p>
+        <ul style="padding-left: 20px; margin: 1rem 0;">
+          <li>No Account trading allowed.</li>
+          <li>No Trades / Services involving real life currency.</li>
+          <li>Don't Register with your Mirage Realms Account, you just need a Username and Password, put your in-game name as the Display Name.</li>
+          <li>Post ONE item per Listings. Unless you're selling a FULL Set.</li>
+          <li>No Bad Words.</li>
+          <li>Don't post weird shit. (pls)</li>
+          <li>Use clear item titles and descriptions, include the items name in the title and its stats in the description so others can find it via search.</li>
+          <li>Don't use big arse Screenshots/Images.</li>
+          <li>Put your Discord Accounts name in the Account menu so users can message you on discord.</li>
+          <li>No Scamming.</li>
+        </ul>
+        <p>Rules might change soon. Your Seller Account will be banned if you break the rules.</p>
+      </div>
+      <div class="modal-actions" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+        <button id="close-rules" class="btn btn-primary">I Understand</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Image Modal -->
   <div id="image-modal" class="modal hidden">
