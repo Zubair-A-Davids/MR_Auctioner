@@ -706,29 +706,30 @@ function renderSingleListing(l, container, isAdmin, currentUserId) {
   
   // Title only (element icon moved to top-right badge)
   let titleHtml = `<div class=\"title-row\"><h3 class=\"listing-title\" data-id=\"${l.id}\">${escapeHtml(l.title)}</h3></div>`;
-  
-  let html = titleHtml + `<p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
-  
+
+  // Build pre-image content in its own wrapper to align images across cards
+  let pre = titleHtml + `<p class="hint seller-line"><span class="seller-label">Seller:</span> <a href="#" class="seller-link" data-user="${l.seller}" data-display="${escapeHtml(sellerDisplay)}">${escapeHtml(sellerDisplay)}</a></p>`;
+
   // Show item type description if available (Info comes first)
   if(itemType){
-    html += `<p class="hint no-gap"><strong>Info:</strong></p><p class="hint no-gap">${escapeHtml(itemType.description)}</p>`;
+    pre += `<p class="hint no-gap"><strong>Info:</strong></p><p class="hint no-gap">${escapeHtml(itemType.description)}</p>`;
   }
-  
+
   // Show listing-specific description if any (Seller's Notes with content below, no gap)
   if(l.desc){
-    html += `<p class="no-gap"><strong>Seller's Notes:</strong></p><p class="no-gap">${colorizeStats(escapeHtml(l.desc))}</p>`;
+    pre += `<p class="no-gap"><strong>Seller's Notes:</strong></p><p class="no-gap">${colorizeStats(escapeHtml(l.desc))}</p>`;
   }
-  
-  // Price row with item type image on far left, gold amount on far right
-  html += `<div class="price-row">`;
-  if(itemType && itemType.image){
-    html += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}" loading="lazy" decoding="async"/>`;
-  }
-  html += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon" decoding="async"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
 
-  // Separator above image area
-  html += `<div class="section-separator"></div>`;
-  
+  // Price row with item type image on far left, gold amount on far right
+  pre += `<div class="price-row">`;
+  if(itemType && itemType.image){
+    pre += `<img class="item-type-image" src="${itemType.image}" alt="${escapeHtml(itemType.name)}" title="${escapeHtml(itemType.description)}" loading="lazy" decoding="async"/>`;
+  }
+  pre += `<div class="price-group"><img src="Gold.png" alt="gold" class="gold-icon" decoding="async"/><strong class="gold-amount">${Number(l.price)||0}</strong></div></div>`;
+
+  // Wrap pre-image area so the separator sits consistently at the bottom of that region
+  let html = `<div class="pre-image">${pre}<div class="section-separator"></div></div>`;
+
   // User-uploaded image (centered below gold amount) or placeholder
   if(l.image){
     html += `<div class="image-container"><img class="user-uploaded-image" src="${l.image}" alt="${escapeHtml(l.title)}" loading="lazy" decoding="async"/></div>`;
