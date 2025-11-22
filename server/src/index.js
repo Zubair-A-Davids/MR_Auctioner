@@ -14,30 +14,14 @@ app.disable('x-powered-by');
 // Enable gzip compression for all responses
 app.use(compression());
 
-// Development CORS settings - allow all origins in development
-const isDevelopment = process.env.NODE_ENV !== 'production';
-const allowedOrigins = isDevelopment 
-  ? ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500'] 
-  : (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-
+const allowed = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
   origin: function (origin, cb) {
-    // Allow requests with no origin (like mobile apps, curl, postman)
-    if (!origin) return cb(null, true);
-    
-    // Check against allowed origins
-    if (isDevelopment || allowedOrigins.includes(origin)) {
-      return cb(null, true);
-    }
-    
-    // Origin not allowed
-    console.log(`CORS blocked for origin: ${origin}`);
+    if (!origin) return cb(null, true); // allow curl/postman
+    if (allowed.includes(origin)) return cb(null, true);
     return cb(new Error('Not allowed by CORS'));
   },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  credentials: false
 }));
 
 app.use(express.json({ limit: '1mb' }));
