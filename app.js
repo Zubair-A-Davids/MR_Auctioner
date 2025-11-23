@@ -1363,23 +1363,35 @@ function setup(){
     const list = qs('#ip-history-list');
     if(!list) return;
     list.innerHTML = '';
-    if(!data || !data.ips || data.ips.length === 0){
+
+    // Support two response shapes:
+    // 1) Array of entries (server returns this): [{ ip, seenAt, accounts: [...] }, ...]
+    // 2) Object with `ips` property (older client expectation): { ips: [...] }
+    const entries = Array.isArray(data) ? data : (data && data.ips ? data.ips : []);
+
+    if(!entries || entries.length === 0){
       list.innerHTML = '<p class="hint">No IP history found for this user.</p>';
       showFlex(modal);
       return;
     }
-    data.ips.forEach(entry => {
+
+    entries.forEach(entry => {
       const wrap = document.createElement('div');
       wrap.className = 'ip-entry';
-      const seen = entry.seen_at ? new Date(entry.seen_at).toLocaleString() : 'Unknown';
+
+      const seenRaw = entry.seenAt || entry.seen_at || null;
+      const seen = seenRaw ? new Date(seenRaw).toLocaleString() : 'Unknown';
       const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between';
       header.innerHTML = `<strong>${escapeHtml(entry.ip)}</strong><span class="muted">seen: ${escapeHtml(seen)}</span>`;
       wrap.appendChild(header);
 
       const accs = document.createElement('ul'); accs.style.marginTop = '.5rem';
       (entry.accounts || []).forEach(a => {
+        const email = a.email || a.email_address || a.username || a.id || 'unknown';
+        const role = a.isAdmin ? 'admin' : (a.isMod ? 'mod' : (a.role || 'user'));
+        const banned = a.bannedUntil || a.banned_until || a.banned || null;
         const li = document.createElement('li');
-        li.innerHTML = `${escapeHtml(a.email)} — ${escapeHtml(a.role || '')} ${a.banned_until ? '(banned)' : ''}`;
+        li.innerHTML = `${escapeHtml(email)} — ${escapeHtml(role)} ${banned ? '(banned)' : ''}`;
         accs.appendChild(li);
       });
       wrap.appendChild(accs);
