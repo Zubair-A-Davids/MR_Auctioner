@@ -19,12 +19,33 @@ router.post('/register', async (req, res) => {
       return res.status(413).json({ error: 'Avatar too large' });
     }
 
+    // Check if client IP is banned (best-effort)
+    try{
+      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      if(clientIp){
+        const bip = await query('SELECT ip, banned_until FROM banned_ips WHERE ip = $1', [clientIp]);
+        if(bip.rowCount){
+          const rec = bip.rows[0];
+          if(!rec.banned_until || new Date(rec.banned_until) > new Date()){
+            return res.status(403).json({ error: 'Registrations from this IP are banned' });
+          }
+        }
+      }
+    }catch(e){ /* ignore if table missing */ }
+
     const password_hash = await bcrypt.hash(password, 10);
     const result = await query(
       'INSERT INTO users (email, password_hash, display_name, discord, bio, avatar) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
       [email.toLowerCase(), password_hash, displayName || null, discord || null, bio || null, avatar || null]
     );
     const userId = result.rows[0].id;
+    // Try to record last_ip if available (best-effort; migration may not have been run)
+    try{
+      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      if(clientIp){
+        await query('UPDATE users SET last_ip = $1 WHERE id = $2', [clientIp, userId]);
+      }
+    }catch(e){ /* ignore if column missing */ }
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(userId), expiresIn: '7d' });
     return res.status(201).json({ token });
   } catch (e) {
@@ -40,16 +61,38 @@ router.post('/login', async (req, res) => {
     const ures = await query('SELECT id, password_hash, banned_until, banned_reason FROM users WHERE email = $1', [email.toLowerCase()]);
     if (!ures.rowCount) return res.status(401).json({ error: 'Invalid credentials' });
     const user = ures.rows[0];
-    
     // Check if user is banned
     if (user.banned_until && new Date(user.banned_until) > new Date()) {
       const remainingMin = Math.ceil((new Date(user.banned_until) - new Date()) / 60000);
       const reason = user.banned_reason ? ` Reason: ${user.banned_reason}` : '';
       return res.status(403).json({ error: `Account banned. ${remainingMin} minutes remaining.${reason}` });
     }
+
+    // Check if IP is banned (banned_ips table) - best-effort
+    try{
+      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      if(clientIp){
+        const bip = await query('SELECT ip, banned_until FROM banned_ips WHERE ip = $1', [clientIp]);
+        if(bip.rowCount){
+          const rec = bip.rows[0];
+          if(!rec.banned_until || new Date(rec.banned_until) > new Date()){
+            return res.status(403).json({ error: 'Access from this IP is banned' });
+          }
+        }
+      }
+    }catch(e){ /* ignore if table missing */ }
     
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+
+    // Try to record last_ip on successful login (best-effort; migration may not have been run)
+    try{
+      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      if(clientIp){
+        await query('UPDATE users SET last_ip = $1 WHERE id = $2', [clientIp, user.id]);
+      }
+    }catch(e){ /* ignore if column missing */ }
+
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(user.id), expiresIn: '7d' });
     return res.json({ token });
   } catch (e) {
@@ -179,11 +222,21 @@ router.get('/users', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Admin or Moderator access required' });
     }
     
-    const usersResult = await query(
-      'SELECT id, email, display_name, is_admin, is_mod, banned_until, banned_reason, created_at FROM users ORDER BY email',
-      []
-    );
-    
+    let usersResult;
+    // Try selecting last_ip as well if column exists
+    try{
+      usersResult = await query(
+        'SELECT id, email, display_name, is_admin, is_mod, banned_until, banned_reason, created_at, COALESCE(last_ip, NULL) as last_ip FROM users ORDER BY email',
+        []
+      );
+    }catch(e){
+      // Fallback to older schema without last_ip
+      usersResult = await query(
+        'SELECT id, email, display_name, is_admin, is_mod, banned_until, banned_reason, created_at FROM users ORDER BY email',
+        []
+      );
+    }
+
     return res.json(usersResult.rows.map(u => ({
       username: u.email,
       displayName: u.display_name,
@@ -191,7 +244,8 @@ router.get('/users', requireAuth, async (req, res) => {
       isMod: u.is_mod,
       bannedUntil: u.banned_until,
       bannedReason: u.banned_reason,
-      createdAt: u.created_at
+      createdAt: u.created_at,
+      lastIp: u.last_ip || null
     })));
   } catch (e) {
     console.error(e);
@@ -239,7 +293,7 @@ router.put('/users/:email', requireAuth, async (req, res) => {
     }
     
     const email = req.params.email.toLowerCase();
-    const { bannedUntil, bannedReason, isMod, displayName } = req.body;
+    const { bannedUntil, bannedReason, isMod, displayName, bannedIp } = req.body;
     
     const updates = [];
     const values = [];
@@ -271,6 +325,12 @@ router.put('/users/:email', requireAuth, async (req, res) => {
       `UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`,
       values
     );
+    // If a bannedIp was provided, insert into banned_ips table (best-effort)
+    try{
+      if(bannedIp){
+        await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [bannedIp, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
+      }
+    }catch(e){ /* ignore if table missing */ }
     
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });

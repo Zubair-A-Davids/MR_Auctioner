@@ -23,6 +23,7 @@ let virtualScrollContainer = null;
 const adminView = { mode: 'admin', roleFilter: 'all', search: '', page: 1, pageSize: 50 };
 const itemsSoldView = { page: 1, pageSize: 20 };
 let banTargetUser = null;
+let banTargetUserIp = null;
 let renameTargetUser = null;
 
 // API connection status
@@ -236,12 +237,43 @@ function daysAgoText(iso){
 function loadJSON(key, fallback){ try{ const v = localStorage.getItem(key); return v? JSON.parse(v) : fallback;}catch(e){return fallback} }
 function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
 
+// Banned IPs helpers (localStorage)
+const LS_BANNED_IPS = 'mr_banned_ips';
+function loadBannedIps(){ return loadJSON(LS_BANNED_IPS, []); }
+function saveBannedIps(list){ saveJSON(LS_BANNED_IPS, Array.from(new Set(list || []))); }
+function isIpBanned(ip){ if(!ip) return false; const list = loadBannedIps(); return list.includes(ip); }
+function addBannedIp(ip){ if(!ip) return; const list = loadBannedIps(); if(!list.includes(ip)) { list.push(ip); saveBannedIps(list); } }
+
+// Try to get client public IP (best-effort). Uses ipify with a timeout.
+async function getClientIp(timeoutMs = 2000){
+  if(!window || !fetch) return null;
+  try{
+    const controller = new AbortController();
+    const id = setTimeout(()=>controller.abort(), timeoutMs);
+    const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+    clearTimeout(id);
+    if(!res.ok) return null;
+    const j = await res.json().catch(()=>null);
+    return j && j.ip ? j.ip : null;
+  }catch(e){ return null; }
+}
+
 // Auth
-function register(username, password, displayName){
+async function register(username, password, displayName){
   const users = loadJSON(LS_USERS, {});
   if(!username || !password) return {ok:false,msg:'Username and password required'};
   if(users[username]) return {ok:false,msg:'Username taken'};
-  users[username] = {password, displayName: displayName || username, bio: '', avatar: '', discord:'', isAdmin:false, isMod:false, bannedUntil:null, bannedReason:''};
+
+  // Block registration from banned IPs (local mode)
+  try{
+    const ip = await getClientIp(1500);
+    if(isIpBanned(ip)) return { ok:false, msg: 'Registrations from your IP are banned' };
+    users[username] = {password, displayName: displayName || username, bio: '', avatar: '', discord:'', isAdmin:false, isMod:false, bannedUntil:null, bannedReason:'', lastIp: ip || null };
+  }catch(e){
+    // Fallback if IP fetch fails: allow registration but don't attach IP
+    users[username] = {password, displayName: displayName || username, bio: '', avatar: '', discord:'', isAdmin:false, isMod:false, bannedUntil:null, bannedReason:'', lastIp: null };
+  }
+
   saveJSON(LS_USERS, users);
   return {ok:true};
 }
@@ -257,7 +289,7 @@ function saveUser(username, data){
   saveJSON(LS_USERS, users);
 }
 
-function login(username, password){
+async function login(username, password){
   const attempts = loadJSON(LS_LOGIN_ATTEMPTS, {});
   const userAttempts = attempts[username] || {count: 0, lockedUntil: null};
   const users = loadJSON(LS_USERS, {});
@@ -307,6 +339,17 @@ function login(username, password){
   // Success - reset attempts
   attempts[username] = {count: 0, lockedUntil: null};
   saveJSON(LS_LOGIN_ATTEMPTS, attempts);
+  // update lastIp when logging in (local mode)
+  try{
+    const ip = await getClientIp(1500);
+    if(ip){
+      const users2 = loadJSON(LS_USERS, {});
+      if(users2[username]){ users2[username].lastIp = ip; saveJSON(LS_USERS, users2); }
+      // Block login if IP is banned
+      if(isIpBanned(ip)) return { ok:false, msg: 'Access denied from this IP' };
+    }
+  }catch(e){ /* ignore ip fetch errors */ }
+
   localStorage.setItem(LS_CURRENT, username);
   return {ok:true};
 }
@@ -1239,8 +1282,10 @@ function setup(){
         const mins = Math.max(1, parseInt(minsRaw, 10) || 0);
         const reason = (qs('#ban-reason').value || '').slice(0, 120);
         const bannedUntil = new Date(Date.now() + mins*60000).toISOString();
-        
-        const result = await ApiService.updateUser(banTargetUser, { bannedUntil, bannedReason: reason });
+        // include IP ban if we have it
+        const updates = { bannedUntil, bannedReason: reason };
+        if(banTargetUserIp) updates.bannedIp = banTargetUserIp;
+        const result = await ApiService.updateUser(banTargetUser, updates);
         if(!result.ok) {
           banTargetUser = null;
           hideEl(qs('#ban-modal'));
@@ -1249,6 +1294,7 @@ function setup(){
         
         hideEl(qs('#ban-modal'));
         banTargetUser = null;
+        banTargetUserIp = null;
         await renderAdminUsers(adminView.mode);
         showMessage('User banned', 'info');
         return;
@@ -1269,10 +1315,14 @@ function setup(){
       const reason = (qs('#ban-reason').value || '').slice(0, 120);
       target.bannedUntil = Date.now() + mins*60000;
       target.bannedReason = reason;
+        // If target has a last known IP, add to banned IP list
+        const targetIp = target.lastIp || target.ip || target.last_ip || null;
+        if(targetIp) addBannedIp(targetIp);
       saveJSON(LS_USERS, users);
       recordModAction('BAN', banTargetUser, currentUser(), reason || `Banned for ${mins} minutes`);
       hideEl(qs('#ban-modal'));
       banTargetUser = null;
+        banTargetUserIp = null;
       renderAdminUsers(adminView.mode);
       showMessage('User banned', 'info');
   }); }
@@ -2218,7 +2268,8 @@ async function renderAdminUsers(mode){
           isAdmin: u.isAdmin,
           isMod: u.isMod,
           bannedUntil: u.bannedUntil ? new Date(u.bannedUntil).getTime() : null,
-          bannedReason: u.bannedReason
+          bannedReason: u.bannedReason,
+          ip: u.ip || u.lastIp || u.last_ip || null
         };
       });
       console.log('Converted users:', users);
@@ -2254,7 +2305,7 @@ async function renderAdminUsers(mode){
   const start = (adminView.page - 1) * adminView.pageSize;
   const end = Math.min(total, start + adminView.pageSize);
 
-  let html = '<table><thead><tr><th>User</th><th>Display Name</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>User</th><th>Display Name</th><th>IP Address</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
   keys.slice(start, end).forEach(u => {
     const rec = users[u];
     const isAdmin = !!rec.isAdmin;
@@ -2285,6 +2336,7 @@ async function renderAdminUsers(mode){
     html += `<tr>
       <td><strong>${escapeHtml(u)}</strong></td>
       <td>${escapeHtml(rec.displayName || u)}</td>
+      <td>${escapeHtml(rec.ip || rec.lastIp || rec.last_ip || '-')}</td>
       <td><div class="role-badges">${roles || '-'}</div></td>
       <td><div class="status-badges">${status || '-'}</div></td>
       <td><div class="admin-actions">${actions.join(' ') || '-'}</div></td>
@@ -2334,6 +2386,14 @@ async function handleAdminAction(action, username, mode){
 
     if(action === 'ban'){
       banTargetUser = username;
+      // attempt to fetch user's IP (API) or use local stored value
+      banTargetUserIp = null;
+      try{
+        const allUsers = await ApiService.getAllUsers();
+        const t = allUsers && allUsers.find(u => u.username === username);
+        banTargetUserIp = t ? (t.ip || t.lastIp || t.last_ip || null) : null;
+      }catch(e){ /* ignore */ }
+
       const title = qs('#ban-title'); if(title) title.textContent = 'Ban User: ' + username;
       qs('#ban-minutes').value = '60';
       qs('#ban-reason').value = '';
@@ -2422,6 +2482,7 @@ async function handleAdminAction(action, username, mode){
   if(action === 'ban'){
     if(!(viewerIsAdmin || (viewerIsMod && !targetIsAdmin && !targetIsMod))) return;
     banTargetUser = username;
+    banTargetUserIp = target.lastIp || target.ip || target.last_ip || null;
     const title = qs('#ban-title'); if(title) title.textContent = 'Ban User: ' + username;
     qs('#ban-minutes').value = '60';
     qs('#ban-reason').value = '';
