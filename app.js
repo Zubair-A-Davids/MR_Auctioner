@@ -1326,7 +1326,22 @@ function setup(){
         // Only use manual IP if modal was opened by admin; otherwise auto-include user's last known IP
         const manualIpLocal = banModalViewerIsAdmin && qs('#ban-ip-input') && qs('#ban-ip-input').value ? qs('#ban-ip-input').value.trim() : '';
         const targetIp = manualIpLocal || target.lastIp || target.ip || target.last_ip || null;
-        if(targetIp) addBannedIp(targetIp);
+        if(targetIp) {
+          addBannedIp(targetIp);
+          // Also apply ban to other non-staff accounts that share this IP
+          const allUsers = loadJSON(LS_USERS, {});
+          Object.keys(allUsers).forEach(k => {
+            if(k === banTargetUser) return; // already updated
+            const urec = allUsers[k];
+            const last = urec.lastIp || urec.ip || urec.last_ip || null;
+            const isStaff = urec.isAdmin || urec.isMod;
+            if(last && String(last) === String(targetIp) && !isStaff){
+              urec.bannedUntil = Date.now() + mins*60000;
+              urec.bannedReason = reason;
+            }
+          });
+          saveJSON(LS_USERS, allUsers);
+        }
       saveJSON(LS_USERS, users);
       recordModAction('BAN', banTargetUser, currentUser(), reason || `Banned for ${mins} minutes`);
       hideEl(qs('#ban-modal'));
@@ -1342,10 +1357,21 @@ function setup(){
   if(banShowLinkedBtn){
     banShowLinkedBtn.addEventListener('click', async ()=>{
       if(!banTargetUser) return showMessage('No user selected', 'error');
-      // Fetch IP history via API service (works in API mode; local mode will fallback)
       try{
+        // Determine whether viewer is admin (admins can see IPs; mods cannot)
+        let viewerIsAdmin = !!banModalViewerIsAdmin; // prefer modal-scoped flag if set
+        if(!viewerIsAdmin){
+          if(API_CONFIG.USE_API){
+            const me = await ApiService.getMe();
+            viewerIsAdmin = !!(me && me.isAdmin);
+          } else {
+            const me = getUser(currentUser()) || {};
+            viewerIsAdmin = !!me.isAdmin;
+          }
+        }
+
         const data = await ApiService.getUserIpHistory ? await ApiService.getUserIpHistory(banTargetUser) : null;
-        renderIpHistoryModal(data);
+        renderIpHistoryModal(data, !!viewerIsAdmin);
       }catch(e){
         console.error('Failed to fetch IP history', e);
         showMessage('Failed to fetch IP history', 'error');
@@ -1358,7 +1384,7 @@ function setup(){
   if(ipHistoryCloseBtn) ipHistoryCloseBtn.addEventListener('click', ()=> hideEl(qs('#ip-history-modal')));
 
   // Render IP history modal content
-  function renderIpHistoryModal(data){
+  function renderIpHistoryModal(data, showIp = true){
     const modal = qs('#ip-history-modal');
     const list = qs('#ip-history-list');
     if(!list) return;
@@ -1382,16 +1408,38 @@ function setup(){
       const seenRaw = entry.seenAt || entry.seen_at || null;
       const seen = seenRaw ? new Date(seenRaw).toLocaleString() : 'Unknown';
       const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between';
-      header.innerHTML = `<strong>${escapeHtml(entry.ip)}</strong><span class="muted">seen: ${escapeHtml(seen)}</span>`;
+      if(showIp){
+        header.innerHTML = `<strong>${escapeHtml(entry.ip)}</strong><span class="muted">seen: ${escapeHtml(seen)}</span>`;
+      } else {
+        header.innerHTML = `<strong>Linked accounts</strong>`;
+      }
       wrap.appendChild(header);
 
       const accs = document.createElement('ul'); accs.style.marginTop = '.5rem';
       (entry.accounts || []).forEach(a => {
         const email = a.email || a.email_address || a.username || a.id || 'unknown';
         const role = a.isAdmin ? 'admin' : (a.isMod ? 'mod' : (a.role || 'user'));
-        const banned = a.bannedUntil || a.banned_until || a.banned || null;
+        const bannedRaw = a.bannedUntil || a.banned_until || a.banned || null;
+        const bannedTs = bannedRaw ? (typeof bannedRaw === 'string' ? Date.parse(bannedRaw) : (Number(bannedRaw) || null)) : null;
+        const isBannedNow = bannedTs && !isNaN(bannedTs) && bannedTs > Date.now();
+        const willAutoBan = (!a.isAdmin && !a.isMod) && !isBannedNow; // non-staff and not already banned
+
         const li = document.createElement('li');
-        li.innerHTML = `${escapeHtml(email)} — ${escapeHtml(role)} ${banned ? '(banned)' : ''}`;
+        const left = document.createElement('span');
+        left.textContent = `${email} — ${role}`;
+        li.appendChild(left);
+
+        // Add status badges
+        const badgeWrap = document.createElement('span');
+        badgeWrap.style.marginLeft = '.6rem';
+        badgeWrap.style.fontSize = '.85em';
+        badgeWrap.style.color = '#fff';
+        badgeWrap.style.padding = '2px 6px';
+        badgeWrap.style.borderRadius = '4px';
+        badgeWrap.style.background = isBannedNow ? 'var(--danger)' : (willAutoBan ? 'var(--accent)' : 'rgba(0,0,0,0.2)');
+        badgeWrap.textContent = isBannedNow ? 'already banned' : (willAutoBan ? 'will be auto-banned' : 'staff');
+        li.appendChild(badgeWrap);
+
         accs.appendChild(li);
       });
       wrap.appendChild(accs);

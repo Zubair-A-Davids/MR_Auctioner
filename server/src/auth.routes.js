@@ -347,22 +347,34 @@ router.put('/users/:email', requireAuth, async (req, res) => {
       }
       values.push(email);
       const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`, values);
-      // Insert banned IP if provided
-      try{
-        // Determine the IP to ban: prefer explicit bannedIp; otherwise fall back to target's last_ip
-        let ipToBan = null;
-        if (bannedIp) ipToBan = normalizeIp(bannedIp);
-        else {
-          const targetIpRes = await query('SELECT last_ip FROM users WHERE email = $1', [email]);
-          if (targetIpRes.rowCount) ipToBan = normalizeIp(targetIpRes.rows[0].last_ip);
-        }
-
-        if (ipToBan){
-          await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [ipToBan, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
-          // Also apply the same ban to other non-staff users that share this last_ip
-          await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [bannedUntil ? new Date(bannedUntil) : null, bannedReason || null, ipToBan]);
-        }
-      }catch(e){ /* ignore */ }
+        // Insert banned IP if provided, or derive from target
+        try{
+          const toBanUntil = bannedUntil ? new Date(bannedUntil) : null;
+          if (bannedIp) {
+            const ipNorm = normalizeIp(bannedIp);
+            if (ipNorm) {
+              await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [ipNorm, toBanUntil, bannedReason || null]);
+              await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [toBanUntil, bannedReason || null, ipNorm]);
+            }
+          } else {
+            const lastIp = targetRes.rows[0].last_ip ? normalizeIp(targetRes.rows[0].last_ip) : null;
+            if (lastIp) {
+              await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [lastIp, toBanUntil, bannedReason || null]);
+              await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [toBanUntil, bannedReason || null, lastIp]);
+            } else {
+              // No current last_ip — look up historical IPs from user_ips
+              try{
+                const hist = await query('SELECT DISTINCT ip FROM user_ips WHERE user_id = $1', [targetId]);
+                for(const hr of hist.rows){
+                  const hip = normalizeIp(hr.ip);
+                  if(!hip) continue;
+                  await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [hip, toBanUntil, bannedReason || null]);
+                  await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [toBanUntil, bannedReason || null, hip]);
+                }
+              }catch(e){ /* ignore if user_ips missing */ }
+            }
+          }
+        }catch(e){ /* ignore propagation errors */ }
       if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
       return res.json({ success: true });
     }
@@ -394,20 +406,31 @@ router.put('/users/:email', requireAuth, async (req, res) => {
 
     values.push(email);
     const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`, values);
-    // If a bannedIp was provided, insert into banned_ips table (best-effort)
+    // If a bannedIp was provided, or we can derive IPs from the target, insert into banned_ips table and propagate bans
     try{
-      // Determine IP to ban: explicit bannedIp preferred; otherwise use the target user's last_ip
-      let ipToBan = null;
-      if (bannedIp) ipToBan = normalizeIp(bannedIp);
-      else {
-        const targetIpRes = await query('SELECT last_ip FROM users WHERE email = $1', [email]);
-        if (targetIpRes.rowCount) ipToBan = normalizeIp(targetIpRes.rows[0].last_ip);
-      }
-
-      if (ipToBan){
-        await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [ipToBan, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
-        // Also apply the same ban to other non-staff accounts sharing this IP
-        await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [bannedUntil ? new Date(bannedUntil) : null, bannedReason || null, ipToBan]);
+      const toBanUntil = bannedUntil ? new Date(bannedUntil) : null;
+      if (bannedIp) {
+        const ipNorm = normalizeIp(bannedIp);
+        if (ipNorm) {
+          await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [ipNorm, toBanUntil, bannedReason || null]);
+          await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [toBanUntil, bannedReason || null, ipNorm]);
+        }
+      } else {
+        const lastIp = targetRes.rows[0].last_ip ? normalizeIp(targetRes.rows[0].last_ip) : null;
+        if (lastIp) {
+          await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [lastIp, toBanUntil, bannedReason || null]);
+          await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [toBanUntil, bannedReason || null, lastIp]);
+        } else {
+          try{
+            const hist = await query('SELECT DISTINCT ip FROM user_ips WHERE user_id = $1', [targetId]);
+            for(const hr of hist.rows){
+              const hip = normalizeIp(hr.ip);
+              if(!hip) continue;
+              await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [hip, toBanUntil, bannedReason || null]);
+              await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [toBanUntil, bannedReason || null, hip]);
+            }
+          }catch(e){ /* ignore if user_ips missing */ }
+        }
       }
     }catch(e){ /* ignore if table missing */ }
 

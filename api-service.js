@@ -435,7 +435,29 @@ const ApiService = {
   // Get IP history and linked accounts for a user (admin/mod only)
   async getUserIpHistory(email) {
     if (!API_CONFIG.USE_API) {
-      return [];
+      // localStorage fallback: scan LS_USERS for matching lastIp and return similar shape to server
+      try{
+        const users = loadJSON(LS_USERS, {});
+        // email here may be username in local mode
+        let target = users[email];
+        if(!target){
+          // try case-insensitive match
+          const key = Object.keys(users).find(k => k.toLowerCase() === String(email).toLowerCase());
+          if(key) target = users[key];
+        }
+        if(!target) return [];
+        const ip = target.lastIp || target.ip || target.last_ip || null;
+        if(!ip) return [];
+        const accounts = Object.keys(users).filter(u => {
+          const rec = users[u] || {};
+          const last = rec.lastIp || rec.ip || rec.last_ip || null;
+          return last && String(last) === String(ip);
+        }).map(u => {
+          const r = users[u];
+          return { email: u, isAdmin: !!r.isAdmin, isMod: !!r.isMod, bannedUntil: r.bannedUntil || r.bannedUntil === 0 ? r.bannedUntil : (r.bannedUntil || r.banned_until || r.banned) };
+        });
+        return [{ ip, seenAt: null, accounts }];
+      }catch(e){ return []; }
     }
 
     try {
