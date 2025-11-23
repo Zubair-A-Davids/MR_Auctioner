@@ -1271,6 +1271,8 @@ function setup(){
   if(pagNext){ pagNext.addEventListener('click', ()=>{ adminView.page++; renderAdminUsers(adminView.mode); }); }
 
   // Ban modal handlers
+  // Tracks whether the person opening the ban modal is an admin
+  let banModalViewerIsAdmin = false;
   const banCancel = qs('#ban-cancel');
   if(banCancel){ banCancel.addEventListener('click', ()=>{ banTargetUser = null; hideEl(qs('#ban-modal')); }); }
   const banConfirm = qs('#ban-confirm');
@@ -1278,13 +1280,18 @@ function setup(){
       if(!banTargetUser) return hideEl(qs('#ban-modal'));
       
       if(API_CONFIG.USE_API){
+        // Determine if the current modal opener was an admin; default false
+        const viewerIsAdminForModal = !!banModalViewerIsAdmin;
         const minsRaw = qs('#ban-minutes').value;
         const mins = Math.max(1, parseInt(minsRaw, 10) || 0);
         const reason = (qs('#ban-reason').value || '').slice(0, 120);
         const bannedUntil = new Date(Date.now() + mins*60000).toISOString();
         // include IP ban if we have it
         const updates = { bannedUntil, bannedReason: reason };
-        if(banTargetUserIp) updates.bannedIp = banTargetUserIp;
+        // Only accept a manual IP override if the modal opener was an admin
+        const manualIp = viewerIsAdminForModal && qs('#ban-ip-input') && qs('#ban-ip-input').value ? qs('#ban-ip-input').value.trim() : '';
+        if(manualIp) updates.bannedIp = manualIp;
+        else if(banTargetUserIp) updates.bannedIp = banTargetUserIp; // auto-include user's last known IP even for mods
         const result = await ApiService.updateUser(banTargetUser, updates);
         if(!result.ok) {
           banTargetUser = null;
@@ -1295,6 +1302,7 @@ function setup(){
         hideEl(qs('#ban-modal'));
         banTargetUser = null;
         banTargetUserIp = null;
+        if(qs('#ban-ip-input')) qs('#ban-ip-input').value = '';
         await renderAdminUsers(adminView.mode);
         showMessage('User banned', 'info');
         return;
@@ -1315,17 +1323,70 @@ function setup(){
       const reason = (qs('#ban-reason').value || '').slice(0, 120);
       target.bannedUntil = Date.now() + mins*60000;
       target.bannedReason = reason;
-        // If target has a last known IP, add to banned IP list
-        const targetIp = target.lastIp || target.ip || target.last_ip || null;
+        // Only use manual IP if modal was opened by admin; otherwise auto-include user's last known IP
+        const manualIpLocal = banModalViewerIsAdmin && qs('#ban-ip-input') && qs('#ban-ip-input').value ? qs('#ban-ip-input').value.trim() : '';
+        const targetIp = manualIpLocal || target.lastIp || target.ip || target.last_ip || null;
         if(targetIp) addBannedIp(targetIp);
       saveJSON(LS_USERS, users);
       recordModAction('BAN', banTargetUser, currentUser(), reason || `Banned for ${mins} minutes`);
       hideEl(qs('#ban-modal'));
       banTargetUser = null;
         banTargetUserIp = null;
+        if(qs('#ban-ip-input')) qs('#ban-ip-input').value = '';
       renderAdminUsers(adminView.mode);
       showMessage('User banned', 'info');
   }); }
+
+  // Show linked accounts button for ban modal
+  const banShowLinkedBtn = qs('#ban-show-linked');
+  if(banShowLinkedBtn){
+    banShowLinkedBtn.addEventListener('click', async ()=>{
+      if(!banTargetUser) return showMessage('No user selected', 'error');
+      // Fetch IP history via API service (works in API mode; local mode will fallback)
+      try{
+        const data = await ApiService.getUserIpHistory ? await ApiService.getUserIpHistory(banTargetUser) : null;
+        renderIpHistoryModal(data);
+      }catch(e){
+        console.error('Failed to fetch IP history', e);
+        showMessage('Failed to fetch IP history', 'error');
+      }
+    });
+  }
+
+  // IP history modal close
+  const ipHistoryCloseBtn = qs('#ip-history-close');
+  if(ipHistoryCloseBtn) ipHistoryCloseBtn.addEventListener('click', ()=> hideEl(qs('#ip-history-modal')));
+
+  // Render IP history modal content
+  function renderIpHistoryModal(data){
+    const modal = qs('#ip-history-modal');
+    const list = qs('#ip-history-list');
+    if(!list) return;
+    list.innerHTML = '';
+    if(!data || !data.ips || data.ips.length === 0){
+      list.innerHTML = '<p class="hint">No IP history found for this user.</p>';
+      showFlex(modal);
+      return;
+    }
+    data.ips.forEach(entry => {
+      const wrap = document.createElement('div');
+      wrap.className = 'ip-entry';
+      const seen = entry.seen_at ? new Date(entry.seen_at).toLocaleString() : 'Unknown';
+      const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between';
+      header.innerHTML = `<strong>${escapeHtml(entry.ip)}</strong><span class="muted">seen: ${escapeHtml(seen)}</span>`;
+      wrap.appendChild(header);
+
+      const accs = document.createElement('ul'); accs.style.marginTop = '.5rem';
+      (entry.accounts || []).forEach(a => {
+        const li = document.createElement('li');
+        li.innerHTML = `${escapeHtml(a.email)} — ${escapeHtml(a.role || '')} ${a.banned_until ? '(banned)' : ''}`;
+        accs.appendChild(li);
+      });
+      wrap.appendChild(accs);
+      list.appendChild(wrap);
+    });
+    showFlex(modal);
+  }
 
   // Rename modal handlers
   const renameCancel = qs('#rename-cancel');
@@ -2305,7 +2366,11 @@ async function renderAdminUsers(mode){
   const start = (adminView.page - 1) * adminView.pageSize;
   const end = Math.min(total, start + adminView.pageSize);
 
-  let html = '<table><thead><tr><th>User</th><th>Display Name</th><th>IP Address</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+  // Show IP column only for Admin view; Mods should not see IP addresses in moderation mode
+  let headerCols = '<th>User</th><th>Display Name</th>';
+  if(mode === 'admin') headerCols += '<th>IP Address</th>';
+  headerCols += '<th>Roles</th><th>Status</th><th>Actions</th>';
+  let html = `<table><thead><tr>${headerCols}</tr></thead><tbody>`;
   keys.slice(start, end).forEach(u => {
     const rec = users[u];
     const isAdmin = !!rec.isAdmin;
@@ -2333,10 +2398,11 @@ async function renderAdminUsers(mode){
     if(canBan){ actions.push(`<button class="btn btn-small ${banned ? '' : 'btn-accent'}" data-action="${banned ? 'unban' : 'ban'}" data-user="${u}">${banned ? 'Unban' : 'Ban'}</button>`); }
     if(canManage && !targetIsAdmin){ actions.push(`<button class="btn btn-small" data-action="toggle-mod" data-user="${u}">${isMod ? 'Revoke Mod' : 'Make Mod'}</button>`); }
 
+    const ipCell = mode === 'admin' ? `<td>${escapeHtml(rec.ip || rec.lastIp || rec.last_ip || '-')}</td>` : '';
     html += `<tr>
       <td><strong>${escapeHtml(u)}</strong></td>
       <td>${escapeHtml(rec.displayName || u)}</td>
-      <td>${escapeHtml(rec.ip || rec.lastIp || rec.last_ip || '-')}</td>
+      ${ipCell}
       <td><div class="role-badges">${roles || '-'}</div></td>
       <td><div class="status-badges">${status || '-'}</div></td>
       <td><div class="admin-actions">${actions.join(' ') || '-'}</div></td>
@@ -2394,7 +2460,20 @@ async function handleAdminAction(action, username, mode){
         banTargetUserIp = t ? (t.ip || t.lastIp || t.last_ip || null) : null;
       }catch(e){ /* ignore */ }
 
+      // record viewer role for modal behavior (allow hiding IP input for mods)
+      banModalViewerIsAdmin = !!viewerIsAdmin;
+
       const title = qs('#ban-title'); if(title) title.textContent = 'Ban User: ' + username;
+      // Show IP in modal only for admins
+      const banIpRow = qs('#ban-ip-row');
+      const banIpSpan = qs('#ban-ip');
+      if(banIpRow && banIpSpan){
+        if(viewerIsAdmin && banTargetUserIp){ banIpSpan.textContent = banTargetUserIp; banIpRow.style.display = 'block'; }
+        else { banIpSpan.textContent = '-'; banIpRow.style.display = 'none'; }
+      }
+      // Clear manual IP input and hide the manual input for non-admins
+      const banIpInput = qs('#ban-ip-input');
+      if(banIpInput){ banIpInput.value = ''; banIpInput.parentElement.style.display = (banModalViewerIsAdmin ? 'block' : 'none'); }
       qs('#ban-minutes').value = '60';
       qs('#ban-reason').value = '';
       showFlex(qs('#ban-modal'));
@@ -2483,7 +2562,19 @@ async function handleAdminAction(action, username, mode){
     if(!(viewerIsAdmin || (viewerIsMod && !targetIsAdmin && !targetIsMod))) return;
     banTargetUser = username;
     banTargetUserIp = target.lastIp || target.ip || target.last_ip || null;
+      // record viewer role for modal behavior
+      banModalViewerIsAdmin = !!viewerIsAdmin;
     const title = qs('#ban-title'); if(title) title.textContent = 'Ban User: ' + username;
+    // Show IP in modal only for admins
+    const banIpRow = qs('#ban-ip-row');
+    const banIpSpan = qs('#ban-ip');
+    if(banIpRow && banIpSpan){
+      if(viewerIsAdmin && banTargetUserIp){ banIpSpan.textContent = banTargetUserIp; banIpRow.style.display = 'block'; }
+      else { banIpSpan.textContent = '-'; banIpRow.style.display = 'none'; }
+    }
+    // Clear manual IP input and hide it for non-admins
+    const banIpInput = qs('#ban-ip-input');
+    if(banIpInput){ banIpInput.value = ''; banIpInput.parentElement.style.display = (banModalViewerIsAdmin ? 'block' : 'none'); }
     qs('#ban-minutes').value = '60';
     qs('#ban-reason').value = '';
     showFlex(qs('#ban-modal'));

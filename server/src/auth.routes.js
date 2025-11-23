@@ -57,6 +57,9 @@ router.post('/register', async (req, res) => {
       const clientIp = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.connection?.remoteAddress);
       if(clientIp){
         await query('UPDATE users SET last_ip = $1 WHERE id = $2', [clientIp, userId]);
+        try{
+          await query('INSERT INTO user_ips (user_id, ip) VALUES ($1,$2) ON CONFLICT DO NOTHING', [userId, clientIp]);
+        }catch(e){ /* ignore if user_ips missing */ }
       }
     }catch(e){ /* ignore if column missing */ }
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(userId), expiresIn: '7d' });
@@ -103,6 +106,9 @@ router.post('/login', async (req, res) => {
       const clientIp = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.connection?.remoteAddress);
       if(clientIp){
         await query('UPDATE users SET last_ip = $1 WHERE id = $2', [clientIp, user.id]);
+        try{
+          await query('INSERT INTO user_ips (user_id, ip) VALUES ($1,$2) ON CONFLICT DO NOTHING', [user.id, clientIp]);
+        }catch(e){ /* ignore if user_ips missing */ }
       }
     }catch(e){ /* ignore if column missing */ }
 
@@ -234,6 +240,7 @@ router.get('/users', requireAuth, async (req, res) => {
     if (!userCheck.rowCount || (!userCheck.rows[0].is_admin && !userCheck.rows[0].is_mod)) {
       return res.status(403).json({ error: 'Admin or Moderator access required' });
     }
+    const viewerIsAdmin = !!userCheck.rows[0].is_admin;
     
     let usersResult;
     // Try selecting last_ip as well if column exists
@@ -258,7 +265,8 @@ router.get('/users', requireAuth, async (req, res) => {
       bannedUntil: u.banned_until,
       bannedReason: u.banned_reason,
       createdAt: u.created_at,
-      lastIp: u.last_ip || null
+      // Only include lastIp for viewers with admin privileges
+      lastIp: viewerIsAdmin ? (u.last_ip || null) : null
     })));
   } catch (e) {
     console.error(e);
@@ -299,19 +307,70 @@ router.delete('/users/:email', requireAuth, async (req, res) => {
 // Update user (admin only) - for ban, mod status, rename
 router.put('/users/:email', requireAuth, async (req, res) => {
   try {
-    // Check if requester is admin
-    const adminCheck = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
-    if (!adminCheck.rowCount || !adminCheck.rows[0].is_admin) {
+    // Check requester roles (admin or mod)
+    const viewerCheck = await query('SELECT is_admin, is_mod FROM users WHERE id = $1', [req.user.id]);
+    if (!viewerCheck.rowCount || (!viewerCheck.rows[0].is_admin && !viewerCheck.rows[0].is_mod)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
-    
+    const viewerIsAdmin = !!viewerCheck.rows[0].is_admin;
+    const viewerIsMod = !!viewerCheck.rows[0].is_mod;
+
     const email = req.params.email.toLowerCase();
     const { bannedUntil, bannedReason, isMod, displayName, bannedIp } = req.body;
-    
+
+    // If requester is a moderator (not admin), only allow banning actions
+    if (!viewerIsAdmin && viewerIsMod) {
+      // Fetch target roles to prevent mods banning admins or other mods
+      const targetRes = await query('SELECT is_admin, is_mod FROM users WHERE email = $1', [email]);
+      if (targetRes.rowCount && (targetRes.rows[0].is_admin || targetRes.rows[0].is_mod)) {
+        return res.status(403).json({ error: 'Cannot modify admin or moderator accounts' });
+      }
+      // Mods may only set bannedUntil and bannedReason (and bannedIp via banned_ips table)
+      if (isMod !== undefined || displayName !== undefined) {
+        return res.status(403).json({ error: 'Insufficient permissions to update these fields' });
+      }
+
+      // Apply ban fields if provided
+      const updates = [];
+      const values = [];
+      let paramCount = 1;
+      if (bannedUntil !== undefined) {
+        updates.push(`banned_until = $${paramCount++}`);
+        values.push(bannedUntil ? new Date(bannedUntil) : null);
+      }
+      if (bannedReason !== undefined) {
+        updates.push(`banned_reason = $${paramCount++}`);
+        values.push(bannedReason || null);
+      }
+      if (updates.length === 0) {
+        return res.status(400).json({ error: 'No ban fields provided' });
+      }
+      values.push(email);
+      const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`, values);
+      // Insert banned IP if provided
+      try{
+        // Determine the IP to ban: prefer explicit bannedIp; otherwise fall back to target's last_ip
+        let ipToBan = null;
+        if (bannedIp) ipToBan = normalizeIp(bannedIp);
+        else {
+          const targetIpRes = await query('SELECT last_ip FROM users WHERE email = $1', [email]);
+          if (targetIpRes.rowCount) ipToBan = normalizeIp(targetIpRes.rows[0].last_ip);
+        }
+
+        if (ipToBan){
+          await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [ipToBan, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
+          // Also apply the same ban to other non-staff users that share this last_ip
+          await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [bannedUntil ? new Date(bannedUntil) : null, bannedReason || null, ipToBan]);
+        }
+      }catch(e){ /* ignore */ }
+      if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
+      return res.json({ success: true });
+    }
+
+    // Admin path: allow full updates
     const updates = [];
     const values = [];
     let paramCount = 1;
-    
     if (bannedUntil !== undefined) {
       updates.push(`banned_until = $${paramCount++}`);
       values.push(bannedUntil ? new Date(bannedUntil) : null);
@@ -328,28 +387,34 @@ router.put('/users/:email', requireAuth, async (req, res) => {
       updates.push(`display_name = $${paramCount++}`);
       values.push(displayName);
     }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No updates provided' });
     }
-    
+
     values.push(email);
-    const result = await query(
-      `UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`,
-      values
-    );
+    const result = await query(`UPDATE users SET ${updates.join(', ')} WHERE email = $${paramCount} RETURNING email`, values);
     // If a bannedIp was provided, insert into banned_ips table (best-effort)
     try{
-      if(bannedIp){
-        const banIp = normalizeIp(bannedIp);
-        await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [banIp, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
+      // Determine IP to ban: explicit bannedIp preferred; otherwise use the target user's last_ip
+      let ipToBan = null;
+      if (bannedIp) ipToBan = normalizeIp(bannedIp);
+      else {
+        const targetIpRes = await query('SELECT last_ip FROM users WHERE email = $1', [email]);
+        if (targetIpRes.rowCount) ipToBan = normalizeIp(targetIpRes.rows[0].last_ip);
+      }
+
+      if (ipToBan){
+        await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [ipToBan, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
+        // Also apply the same ban to other non-staff accounts sharing this IP
+        await query('UPDATE users SET banned_until = $1, banned_reason = $2 WHERE last_ip = $3 AND (is_admin = false AND is_mod = false)', [bannedUntil ? new Date(bannedUntil) : null, bannedReason || null, ipToBan]);
       }
     }catch(e){ /* ignore if table missing */ }
-    
+
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     return res.json({ success: true });
   } catch (e) {
     console.error(e);
@@ -384,6 +449,58 @@ router.get('/stats', async (req, res) => {
     
     res.setHeader('X-Cache', 'MISS');
     res.setHeader('Cache-Control', 'public, max-age=300'); // Browser cache for 5 minutes
+    return res.json(result);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get historical IPs for a user and accounts associated with those IPs
+router.get('/users/by-email/:email/ips', requireAuth, async (req, res) => {
+  try {
+    // requester must be admin or mod
+    const viewerCheck = await query('SELECT is_admin, is_mod FROM users WHERE id = $1', [req.user.id]);
+    if (!viewerCheck.rowCount || (!viewerCheck.rows[0].is_admin && !viewerCheck.rows[0].is_mod)) {
+      return res.status(403).json({ error: 'Admin or Moderator access required' });
+    }
+
+    const email = req.params.email;
+    const targetRes = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (!targetRes.rowCount) return res.status(404).json({ error: 'User not found' });
+    const targetId = targetRes.rows[0].id;
+
+    // Fetch distinct IPs seen for this user from user_ips
+    let ipRows;
+    try{
+      ipRows = await query('SELECT ip, max(seen_at) as seen_at FROM user_ips WHERE user_id = $1 GROUP BY ip ORDER BY max(seen_at) DESC', [targetId]);
+    }catch(e){
+      // If user_ips table missing, fall back to using last_ip from users
+      const single = await query('SELECT last_ip FROM users WHERE id = $1', [targetId]);
+      const ip = single.rowCount ? single.rows[0].last_ip : null;
+      ipRows = { rows: ip ? [{ ip, seen_at: null }] : [] };
+    }
+
+    // For each IP, find associated accounts (either last_ip matches or historical entries)
+    const result = [];
+    for(const r of ipRows.rows){
+      const ip = r.ip;
+      if(!ip) continue;
+      const accounts = [];
+      // users with current last_ip = ip
+      const cur = await query('SELECT id, email, last_ip, is_admin, is_mod, banned_until FROM users WHERE last_ip = $1', [ip]);
+      cur.rows.forEach(u => accounts.push({ id: u.id, email: u.email, lastIp: u.last_ip, isAdmin: u.is_admin, isMod: u.is_mod, bannedUntil: u.banned_until }));
+      // users with historical records of that ip (from user_ips) - include those not already in list
+      try{
+        const hist = await query('SELECT u.id, u.email, u.last_ip, u.is_admin, u.is_mod, u.banned_until FROM users u JOIN user_ips ui ON ui.user_id = u.id WHERE ui.ip = $1', [ip]);
+        hist.rows.forEach(u => {
+          if(!accounts.find(a => a.id === u.id)) accounts.push({ id: u.id, email: u.email, lastIp: u.last_ip, isAdmin: u.is_admin, isMod: u.is_mod, bannedUntil: u.banned_until });
+        });
+      }catch(e){ /* ignore if user_ips missing */ }
+
+      result.push({ ip, seenAt: r.seen_at || null, accounts });
+    }
+
     return res.json(result);
   } catch (e) {
     console.error(e);

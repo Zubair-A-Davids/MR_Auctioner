@@ -442,9 +442,17 @@
       <label>Reason (optional)
         <input id="ban-reason" type="text" maxlength="80" placeholder="Reason for ban" />
       </label>
-      <div class="form-actions">
-        <button id="ban-confirm" class="btn btn-accent">Confirm</button>
-        <button id="ban-cancel" class="btn">Cancel</button>
+      <p id="ban-ip-row" class="hint" style="display:none;margin-top:.5rem"><strong>IP:</strong> <span id="ban-ip">-</span></p>
+      <label>IP to ban (optional)
+        <input id="ban-ip-input" type="text" placeholder="Enter IP to ban (e.g. 203.0.113.5)" />
+      </label>
+      <div style="margin-top:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <button id="ban-show-linked" class="btn">Show Linked Accounts</button>
+        <div style="flex:1"></div>
+        <div class="form-actions" style="margin:0;">
+          <button id="ban-confirm" class="btn btn-accent">Confirm</button>
+          <button id="ban-cancel" class="btn">Cancel</button>
+        </div>
       </div>
     </div>
   </div>
@@ -549,6 +557,18 @@
       </div>
     </div>
   </div>
+
+      <!-- IP History / Linked Accounts modal -->
+      <div id="ip-history-modal" class="modal hidden">
+        <div class="modal-inner modal-inner-dark" style="max-width:800px;">
+          <h2 id="ip-history-title">Linked Accounts by IP</h2>
+          <p class="hint">Previous IPs seen for the selected user and accounts associated with each IP.</p>
+          <div id="ip-history-list" style="max-height:60vh;overflow:auto;margin-top:.5rem"></div>
+          <div class="form-actions" style="margin-top:1rem;justify-content:center">
+            <button id="ip-history-close" class="btn btn-accent">Close</button>
+          </div>
+        </div>
+      </div>
 
   <!-- Help / FAQ Modal -->
   <div id="help-modal" class="modal hidden" aria-labelledby="help-modal-title" aria-modal="true" role="dialog">

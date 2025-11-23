@@ -432,6 +432,21 @@ const ApiService = {
     }
   },
 
+  // Get IP history and linked accounts for a user (admin/mod only)
+  async getUserIpHistory(email) {
+    if (!API_CONFIG.USE_API) {
+      return [];
+    }
+
+    try {
+      const data = await this.apiRequest(`/auth/users/by-email/${encodeURIComponent(email)}/ips`);
+      return data || [];
+    } catch (e) {
+      console.error('getUserIpHistory error:', e);
+      return [];
+    }
+  },
+
   // Get site statistics
   async getStats() {
     if (!API_CONFIG.USE_API) {
