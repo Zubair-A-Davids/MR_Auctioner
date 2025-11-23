@@ -11,6 +11,34 @@ dotenv.config();
 const app = express();
 app.disable('x-powered-by');
 
+// If behind a reverse proxy (nginx, load balancer, Cloudflare, etc.), trust
+// the proxy so `req.ip` and `req.ips` reflect the client IP from X-Forwarded-For.
+// This defaults to true in production; set env TRUST_PROXY=false to disable.
+if (process.env.TRUST_PROXY === 'false') {
+  app.set('trust proxy', false);
+} else {
+  app.set('trust proxy', true);
+}
+
+// Optional: log IP-related headers for debugging when LOG_IP_HEADERS=1
+if (process.env.LOG_IP_HEADERS === '1') {
+  app.use((req, res, next) => {
+    try {
+      console.log('IP debug:', {
+        ip: req.ip,
+        ips: req.ips,
+        remoteAddress: req.connection && req.connection.remoteAddress,
+        xForwardedFor: req.headers['x-forwarded-for'],
+        xRealIp: req.headers['x-real-ip'],
+        forwarded: req.headers['forwarded']
+      });
+    } catch (e) {
+      // ignore
+    }
+    next();
+  });
+}
+
 // Enable gzip compression for all responses
 app.use(compression());
 

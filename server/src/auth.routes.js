@@ -5,6 +5,19 @@ import { query } from './db.js';
 import { requireAuth } from './middleware.auth.js';
 import { getStatsCache, setStatsCache } from './cache.js';
 
+// Helper: normalize raw IP values to a consistent form
+function normalizeIp(raw) {
+  if (!raw) return null;
+  // If header contains multiple IPs, take the first
+  let ip = Array.isArray(raw) ? raw[0] : String(raw);
+  ip = ip.split(',')[0].trim();
+  // Strip IPv4-mapped IPv6 prefix
+  if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
+  // Map IPv6 loopback to IPv4 loopback for readability in UI/local dev
+  if (ip === '::1') ip = '127.0.0.1';
+  return ip;
+}
+
 const router = express.Router();
 
 router.post('/register', async (req, res) => {
@@ -21,7 +34,7 @@ router.post('/register', async (req, res) => {
 
     // Check if client IP is banned (best-effort)
     try{
-      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      const clientIp = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.connection?.remoteAddress);
       if(clientIp){
         const bip = await query('SELECT ip, banned_until FROM banned_ips WHERE ip = $1', [clientIp]);
         if(bip.rowCount){
@@ -41,7 +54,7 @@ router.post('/register', async (req, res) => {
     const userId = result.rows[0].id;
     // Try to record last_ip if available (best-effort; migration may not have been run)
     try{
-      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      const clientIp = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.connection?.remoteAddress);
       if(clientIp){
         await query('UPDATE users SET last_ip = $1 WHERE id = $2', [clientIp, userId]);
       }
@@ -70,7 +83,7 @@ router.post('/login', async (req, res) => {
 
     // Check if IP is banned (banned_ips table) - best-effort
     try{
-      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      const clientIp = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.connection?.remoteAddress);
       if(clientIp){
         const bip = await query('SELECT ip, banned_until FROM banned_ips WHERE ip = $1', [clientIp]);
         if(bip.rowCount){
@@ -87,7 +100,7 @@ router.post('/login', async (req, res) => {
 
     // Try to record last_ip on successful login (best-effort; migration may not have been run)
     try{
-      const clientIp = req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0] || null;
+      const clientIp = normalizeIp(req.headers['x-forwarded-for'] || req.ip || req.connection?.remoteAddress);
       if(clientIp){
         await query('UPDATE users SET last_ip = $1 WHERE id = $2', [clientIp, user.id]);
       }
@@ -328,7 +341,8 @@ router.put('/users/:email', requireAuth, async (req, res) => {
     // If a bannedIp was provided, insert into banned_ips table (best-effort)
     try{
       if(bannedIp){
-        await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [bannedIp, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
+        const banIp = normalizeIp(bannedIp);
+        await query('INSERT INTO banned_ips (ip, banned_until, reason) VALUES ($1,$2,$3) ON CONFLICT (ip) DO UPDATE SET banned_until = EXCLUDED.banned_until, reason = EXCLUDED.reason', [banIp, bannedUntil ? new Date(bannedUntil) : null, bannedReason || null]);
       }
     }catch(e){ /* ignore if table missing */ }
     
