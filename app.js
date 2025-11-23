@@ -47,6 +47,7 @@ function debounce(func, wait) {
     timeout = setTimeout(later, wait);
   };
 }
+hideEl(qs('#loading-screen'));
 // Open enlarged listing detail modal (repaired)
 async function openListingDetail(id){
   try {
@@ -961,7 +962,7 @@ async function processImageFile(file, maxBytes=200*1024, maxDim=1200){
     }catch(e){
       result = canvas.toDataURL();
     }
-    const byteLen = Math.ceil((result.length - 'data:image/jpeg;base64,'.length) * 3/4);
+    const byteLen = Math.ceil((result.length - 'data:image/jpeg;base64.'.length) * 3/4);
     if(byteLen <= maxBytes) return result;
 
     // lower quality first, then dimensions
@@ -2260,6 +2261,7 @@ async function renderAdminUsers(mode){
     const isAdmin = !!rec.isAdmin;
     const isMod = !!rec.isMod;
     const roles = [isAdmin ? '<span class="role-badge role-admin">ADMIN</span>' : '', isMod ? '<span class="role-badge role-mod">MOD</span>' : ''].filter(Boolean).join(' ');
+
     const banned = rec.bannedUntil && Date.now() < rec.bannedUntil;
     let status = '';
     if(banned){
@@ -2464,355 +2466,280 @@ async function handleAdminAction(action, username, mode){
   }
 }
 
-// Items Sold History
-async function openItemsSoldHistory(){
-  const u = currentUser(); if(!u) return;
-  await openItemsSoldHistoryForUser(u);
-}
-
-async function openItemsSoldHistoryForUser(username){
-  let userHistory = [];
-  let displayName = username;
-  
-  if(API_CONFIG.USE_API) {
-    // Use API to get items sold history
-    userHistory = await ApiService.getItemsSoldHistory();
-    const me = await ApiService.getMe();
-    if(me) displayName = me.displayName || me.email;
-  } else {
-    // Use localStorage
-    const history = loadJSON(LS_ITEMS_SOLD, {});
-    userHistory = history[username] || [];
-    const targetUser = getUser(username);
-    displayName = targetUser ? (targetUser.displayName || username) : username;
-  }
-  
-  itemsSoldView.page = 1;
-  qs('#items-sold-title').textContent = `Items Sold History - ${displayName}`;
-  renderItemsSoldPage(userHistory);
-  showFlex(qs('#items-sold-modal'));
-}
-
-function renderItemsSoldPage(userHistory){
-  const container = qs('#items-sold-list');
-  if(!container) return;
-  
-  const total = userHistory.length;
-  const totalPages = Math.max(1, Math.ceil(total / itemsSoldView.pageSize));
-  if(itemsSoldView.page > totalPages) itemsSoldView.page = totalPages;
-  const start = (itemsSoldView.page - 1) * itemsSoldView.pageSize;
-  const end = Math.min(total, start + itemsSoldView.pageSize);
-  
-  if(userHistory.length === 0){
-    container.innerHTML = '<p class="hint">No items sold yet.</p>';
-  } else {
-    let html = '';
-    userHistory.slice(start, end).forEach(item => {
-      const createdDate = new Date(item.createdAt).toLocaleString();
-      const deletedTag = item.deletedAt ? `<span style="color:var(--accent);font-weight:600"> [DELETED]</span>` : '';
-      const description = item.desc ? `<p class="hint" style="margin-top:.35rem">${escapeHtml(item.desc)}</p>` : '';
-      
-      // Elite and Element badges
-      let statusBadges = '';
-      if(item.elite || item.element){
-        statusBadges = '<div style="display:flex;gap:.35rem;margin-top:.25rem">';
-        if(item.elite){
-          statusBadges += '<img src="Items/Elite/Elite.png" alt="Elite" title="Elite Item" style="width:20px;height:20px;object-fit:contain"/>';
-        }
-        if(item.element){
-          statusBadges += `<img src="Items/Enchants/${escapeHtml(item.element)}.png" alt="${escapeHtml(item.element)}" title="${escapeHtml(item.element)} Element" style="width:20px;height:20px;object-fit:contain"/>`;
-        }
-        statusBadges += '</div>';
-      }
-      
-      html += `<div class="history-item">
-        <strong>${escapeHtml(item.title)}</strong>${deletedTag}
-        ${description}
-        ${statusBadges}
-        <p class="hint">Price: ${item.price} gold | Listed: ${createdDate}</p>
-        ${item.deletedAt ? `<p class="hint">Deleted: ${new Date(item.deletedAt).toLocaleString()}</p>` : ''}
-      </div>`;
-    });
-    container.innerHTML = html;
-  }
-  
-  // Update pagination UI
-  const pageLabel = qs('#items-sold-page-label');
-  const prevBtn = qs('#items-sold-prev');
-  const nextBtn = qs('#items-sold-next');
-  if(pageLabel) pageLabel.textContent = `Page ${itemsSoldView.page} of ${totalPages} — ${total} items`;
-  if(prevBtn) prevBtn.disabled = itemsSoldView.page <= 1;
-  if(nextBtn) nextBtn.disabled = itemsSoldView.page >= totalPages;
-}
-
-// Moderation History
-async function openModHistory(){
-  const container = qs('#mod-history-list');
-  if(!container) return;
-  
-  container.innerHTML = '<p class="hint">Loading...</p>';
-  showFlex(qs('#mod-history-modal'));
-  
-  let history = [];
-  
-  if(API_CONFIG.USE_API) {
-    // In API mode, fetch moderation history from server
-    try {
-      history = await ApiService.getModHistory();
-    } catch(e) {
-      console.error('Failed to load mod history:', e);
-      container.innerHTML = '<p class="hint error">Failed to load moderation history.</p>';
-      return;
-    }
-  } else {
-    // In localStorage mode, use local storage
-    history = loadJSON(LS_MOD_HISTORY, []);
-  }
-  
-  if(history.length === 0){
-    container.innerHTML = '<p class="hint">No moderation actions yet.</p>';
-  } else {
-    let html = '';
-    history.forEach(entry => {
-      const timestamp = new Date(entry.timestamp || entry.created_at).toLocaleString();
-      const actionLabel = (entry.action || entry.type || '').replace(/_/g, ' ').toUpperCase();
-      const target = entry.targetUser || entry.target_user || entry.item_title || 'Unknown';
-      const mod = entry.moderator || entry.moderator_name || 'Unknown';
-      html += `<div class="history-item">
-        <strong class="mod-action">${escapeHtml(actionLabel)}</strong>
-        <p class="hint">Target: ${escapeHtml(target)} | By: ${escapeHtml(mod)}</p>
-        <p class="hint">${timestamp}${entry.reason ? ' | ' + escapeHtml(entry.reason) : ''}</p>
-      </div>`;
-    });
-    container.innerHTML = html;
+// IP Management Modal logic
+function showIpModal() {
+  const modal = qs('#ip-modal');
+  if (modal) {
+    showFlex(modal);
+    loadBannedIps();
   }
 }
 
-// Show toast message to user
-function showMessage(message, type = 'info', duration = 3000) {
-  const messageEl = qs('#site-message');
-  if (!messageEl) return;
-  
-  messageEl.textContent = message;
-  messageEl.className = `message show ${type}`;
-  
-  // Auto-hide after duration
-  setTimeout(() => {
-    messageEl.className = 'message hidden';
-  }, duration);
+function hideIpModal() {
+  const modal = qs('#ip-modal');
+  if (modal) hideEl(modal);
 }
 
-// Custom confirm modal
-let confirmCallback = null;
-function showConfirmModal(message, onConfirm){
-  qs('#confirm-message').textContent = message;
-  confirmCallback = onConfirm;
-  showFlex(qs('#confirm-modal'));
-}
-
-// API Connection Status
-async function updateApiStatus() {
-  const statusEl = qs('#api-status');
-  const dotEl = qs('.api-status-dot');
-  const textEl = qs('.api-status-text');
+async function loadBannedIps() {
+  const list = qs('#ip-banned-list');
+  const usersList = qs('#ip-users-list');
+  if (!list || !usersList) return;
   
-  if (!statusEl || !dotEl || !textEl) return;
-  
-  // Set checking state
-  statusEl.className = 'api-status checking';
-  textEl.textContent = 'Checking...';
+  // Show loading states
+  list.innerHTML = '<p class="hint">Loading banned IPs...</p>';
+  usersList.innerHTML = `
+    <div class="loading-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+      <p class="hint">Loading user data...</p>
+      <div class="loading-spinner" style="width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; margin: 1rem 0;"></div>
+    </div>`;
   
   try {
-    const status = await ApiService.checkConnection();
+    // Load both banned IPs and users with their IPs in parallel
+    const [bannedRes, usersRes] = await Promise.all([
+      ApiService.apiRequest('/auth/banned-ips').catch(e => {
+        console.error('Error loading banned IPs:', e);
+        return { error: 'Failed to load banned IPs' };
+      }),
+      ApiService.apiRequest('/auth/users-with-ips').catch(e => {
+        console.error('Error loading users with IPs:', e);
+        return { error: 'Failed to load user data' };
+      })
+    ]);
     
-    if (status.connected) {
-      statusEl.className = 'api-status connected';
-      textEl.textContent = status.mode === 'localStorage' ? 'Local Mode' : 'API Connected';
-      statusEl.title = status.mode === 'localStorage' 
-        ? 'Using localStorage (offline mode)' 
-        : 'API connection is active';
+    // Display banned IPs with better error handling
+    if (bannedRes && bannedRes.error) {
+      list.innerHTML = `
+        <div class="error-message" style="color: #ff6b6b; padding: 1rem; background: rgba(255,0,0,0.1); border-radius: 4px; margin: 1rem 0;">
+          ${bannedRes.error}
+        </div>`;
+    } else if (!bannedRes || !Array.isArray(bannedRes)) {
+      list.innerHTML = `
+        <div class="hint" style="padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 4px; text-align: center;">
+          No banned IPs found or invalid data received.
+        </div>`;
+    } else if (bannedRes.length === 0) {
+      list.innerHTML = `
+        <div class="hint" style="padding: 1rem; text-align: center; color: #aaa;">
+          No IP addresses are currently banned.
+        </div>`;
     } else {
-      statusEl.className = 'api-status disconnected';
-      textEl.textContent = 'API Offline';
-      statusEl.title = `API not reachable: ${status.error || 'Unknown error'}`;
+      // Get usernames of admins who performed the bans
+      const adminIds = [...new Set(bannedRes.map(ip => ip.banned_by).filter(id => id))];
+      let adminMap = {};
+      
+      if (adminIds.length > 0) {
+        try {
+          const adminUsersRes = await ApiService.apiRequest(`/auth/users?ids=${adminIds.join(',')}`);
+          if (adminUsersRes && Array.isArray(adminUsersRes)) {
+            adminMap = adminUsersRes.reduce((acc, user) => {
+              acc[user.id] = user.username || user.email || `User ${user.id}`;
+              return acc;
+            }, {});
+          }
+        } catch (e) {
+          console.error('Error fetching admin usernames:', e);
+        }
+      }
+      
+      list.innerHTML = `
+        <h3 style="margin-top: 0; margin-bottom: 1rem;">Banned IP Addresses</h3>
+        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #444; border-radius: 4px; margin-bottom: 1rem;">
+          ${bannedRes.map(ip => {
+            const adminName = ip.banned_by ? (adminMap[ip.banned_by] || `User ID: ${ip.banned_by}`) : 'System';
+            return `
+              <div class="ip-ban-item" style="padding: 0.75rem; border-bottom: 1px solid #444; background: rgba(255, 0, 0, 0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                  <div>
+                    <strong style="font-family: monospace; color: var(--primary);">${ip.ip_address}</strong>
+                    <span class="hint" style="font-size: 0.8rem; margin-left: 0.5rem;">Banned by: ${adminName}</span>
+                  </div>
+                  <span class="hint" style="font-size: 0.85rem;">${new Date(ip.created_at).toLocaleString()}</span>
+                </div>
+                ${ip.reason ? `<div class="hint" style="font-size: 0.9rem;">Reason: ${ip.reason}</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+    
+    // Display users with their IPs with better error handling
+    if (usersRes && usersRes.error) {
+      usersList.innerHTML = `
+        <div class="error-message" style="color: #ff6b6b; padding: 1rem; background: rgba(255,0,0,0.1); border-radius: 4px; margin: 1rem 0;">
+          ${usersRes.error}
+        </div>`;
+    } else if (!usersRes || !Array.isArray(usersRes)) {
+      usersList.innerHTML = `
+        <div class="hint" style="padding: 1rem; text-align: center; color: #aaa;">
+          Unable to load user data. Please try again later.
+        </div>`;
+    } else if (usersRes.length === 0) {
+      usersList.innerHTML = `
+        <div class="hint" style="padding: 1rem; text-align: center; color: #aaa;">
+          No users found in the system.
+        </div>`;
+    } else {
+      // Filter out users with no IPs for a cleaner view
+      const usersWithIPs = usersRes.filter(user => user.ip_addresses && user.ip_addresses.length > 0);
+      const usersWithoutIPs = usersRes.filter(user => !user.ip_addresses || user.ip_addresses.length === 0);
+      
+      let usersHTML = `
+        <h3 style="margin-top: 0; margin-bottom: 1rem;">Users and Their IPs</h3>
+        <div style="max-height: 500px; overflow-y: auto; border: 1px solid #444; border-radius: 4px;">`;
+      
+      // Show users with IPs first
+      if (usersWithIPs.length > 0) {
+        usersHTML += usersWithIPs.map(user => `
+          <div class="user-ip-item" style="padding: 0.75rem; border-bottom: 1px solid #444; background: rgba(255,255,255,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <div>
+                <strong>${escapeHtml(user.display_name || user.email || `User ${user.id}`)}</strong>
+                ${user.is_admin ? '<span class="badge badge-admin" style="background: #ff4d4d; color: white; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">Admin</span>' : ''}
+                ${user.is_mod ? '<span class="badge badge-mod" style="background: #4d79ff; color: white; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">Mod</span>' : ''}
+                ${user.banned_until ? '<span class="badge badge-banned" style="background: #ff4d4d; color: white; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">Banned</span>' : ''}
+              </div>
+              <button class="btn btn-small btn-accent ban-ip-btn" data-user-id="${user.id}" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; white-space: nowrap;">
+                Ban All IPs
+              </button>
+            </div>
+            <div style="margin-top: 0.5rem;">
+              <div class="hint" style="font-size: 0.85rem; margin-bottom: 0.25rem;">IP Addresses:</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.25rem;">
+                ${user.ip_addresses.map(ip => `
+                  <span class="ip-tag" style="font-family: monospace; background: rgba(0, 0, 0, 0.2); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">
+                    ${ip}
+                  </span>
+                `).join('')}
+              </div>
+              <div class="hint" style="font-size: 0.75rem; color: #888; margin-top: 0.25rem;">
+                Last seen: ${user.last_seen ? new Date(user.last_seen).toLocaleString() : 'Never'}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        usersHTML += `
+          <div class="hint" style="padding: 1.5rem; text-align: center; color: #888;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌐</div>
+            <p>No users with recorded IP addresses found.</p>
+            <p style="font-size: 0.9rem; margin-top: 0.5rem;">IP addresses will appear here after users log in.</p>
+          </div>`;
+      }
+      
+      // Show users without IPs in a collapsible section
+      if (usersWithoutIPs.length > 0) {
+        usersHTML += `
+          <div style="margin-top: 1.5rem; border-top: 1px solid #444; padding-top: 1rem;">
+            <details>
+              <summary style="cursor: pointer; color: #aaa; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                Show ${usersWithoutIPs.length} user(s) without IP data
+              </summary>
+              <div style="margin-top: 0.5rem; color: #888; font-size: 0.9rem;">
+                ${usersWithoutIPs.map(u => `
+                  <div style="padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    ${u.display_name || u.email || `User ${u.id}`}
+                    <span class="hint" style="margin-left: 0.5rem; font-size: 0.8em;">
+                      (Last seen: ${u.last_seen ? new Date(u.last_seen).toLocaleString() : 'Never'})
+                    </span>
+                  </div>
+                `).join('')}
+              </div>
+            </details>
+          </div>`;
+      }
+      
+      usersHTML += `</div>`; // Close the scrollable container
+      usersList.innerHTML = usersHTML;
     }
   } catch (e) {
-    statusEl.className = 'api-status disconnected';
-    textEl.textContent = 'Check Failed';
-    statusEl.title = `Error checking API: ${e.message}`;
+    console.error('Error loading IP management data:', e);
+    
+    // Update both panels with error messages
+    if (list) {
+      list.innerHTML = `
+        <div class="error-message" style="color: #ff6b6b; padding: 1rem; background: rgba(255,0,0,0.1); border-radius: 4px; margin: 1rem 0;">
+          Failed to load banned IPs. Please try again later.
+          <div style="font-size: 0.8em; margin-top: 0.5em; color: #ff9e9e;">
+            Error: ${e.message || 'Unknown error'}
+          </div>
+        </div>`;
+    }
+    
+    if (usersList) {
+      usersList.innerHTML = `
+        <div class="error-message" style="color: #ff6b6b; padding: 1rem; background: rgba(255,0,0,0.1); border-radius: 4px; margin: 1rem 0;">
+          Failed to load user data. Please try again later.
+          <div style="font-size: 0.8em; margin-top: 0.5em; color: #ff9e9e;">
+            Error: ${e.message || 'Unknown error'}
+          </div>
+        </div>`;
+    }
   }
 }
 
-function startApiStatusMonitoring() {
-  // Initial check
-  updateApiStatus();
+async function banIp() {
+  const ipInput = qs('#ip-ban-input');
+  const reasonInput = qs('#ip-ban-reason-input');
   
-  // Check every 30 seconds
-  if (apiStatusCheckInterval) {
-    clearInterval(apiStatusCheckInterval);
-  }
-  apiStatusCheckInterval = setInterval(updateApiStatus, 30000);
-}
-
-function stopApiStatusMonitoring() {
-  if (apiStatusCheckInterval) {
-    clearInterval(apiStatusCheckInterval);
-    apiStatusCheckInterval = null;
-  }
-}
-
-// Register service worker for caching
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then((registration) => {
-        console.log('✅ Service Worker registered:', registration.scope);
-        
-        // Check for updates periodically
-        setInterval(() => {
-          registration.update();
-        }, 60000); // Check every minute
-        
-        // Listen for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('🔄 New service worker available, will activate on next page load');
-            }
-          });
-        });
-      })
-      .catch((error) => {
-        console.warn('⚠️ Service Worker registration failed:', error);
-      });
-  });
-}
-
-// Delete reason modal for mods
-function showDeleteReasonModal(itemId, itemTitle, sellerName) {
-  const modal = qs('#delete-reason-modal');
-  const input = qs('#delete-reason-input');
-  const hint = qs('#delete-reason-hint');
-  hint.textContent = `Deleting "${itemTitle}" by ${sellerName}. Provide a reason:`;
-  input.value = '';
-  showFlex(modal);
+  if (!ipInput || !reasonInput) return;
   
-  qs('#delete-reason-confirm').onclick = async () => {
-    const reason = input.value.trim();
-    if(!reason) return showMessage('Reason required', 'error');
-    hideEl(modal);
-    await deleteListing(itemId, reason);
-    await renderListings();
-    showMessage('Item deleted and owner notified', 'success');
-  };
+  const ip = ipInput.value.trim();
+  const reason = reasonInput.value.trim();
   
-  qs('#delete-reason-cancel').onclick = () => hideEl(modal);
-}
-
-// Warning modal for admins/mods
-async function showWarningModal(itemId, itemTitle) {
-  const modal = qs('#warning-modal');
-  const input = qs('#warning-reason-input');
-  const hint = qs('#warning-hint');
-  hint.textContent = `Add warning to "${itemTitle}":`;
-  input.value = '';
-  showFlex(modal);
-  
-  qs('#warning-confirm').onclick = async () => {
-    const reason = input.value.trim();
-    if(!reason) return showMessage('Warning reason required', 'error');
-    hideEl(modal);
-    
-    const result = await ApiService.addWarningToItem(itemId, reason);
-    if(!result.ok) return showMessage(result.msg || 'Failed to add warning', 'error');
-    
-    showMessage('Warning sent to seller', 'success');
-    // Reload listing detail to show warning
-    await openListingDetail(itemId);
-  };
-  
-  qs('#warning-cancel').onclick = () => hideEl(modal);
-}
-
-// Warnings/Notifications modal
-async function showWarningsModal() {
-  const modal = qs('#warnings-modal');
-  const list = qs('#warnings-list');
-  list.innerHTML = '<p class="hint">Loading...</p>';
-  showFlex(modal);
-  
-  const notifications = await ApiService.getUserNotifications();
-  
-  if(!notifications || notifications.length === 0) {
-    list.innerHTML = '<p class="hint">No warnings or notifications</p>';
-    return;
+  // Basic IP validation
+  const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (!ip || !ipRegex.test(ip)) {
+    return showMessage('Please enter a valid IP address', 'error');
   }
   
-  list.innerHTML = '';
-  const unreadIds = [];
-  
-  notifications.forEach(n => {
-    const div = document.createElement('div');
-    div.className = 'warning-item' + (!n.is_read ? ' unread' : '');
-    
-    let typeLabel = '';
-    if(n.type === 'item_deleted') typeLabel = '<span class="warning-type deleted">DELETED</span>';
-    else if(n.type === 'item_warned') typeLabel = '<span class="warning-type warned">WARNING</span>';
-    
-    const timeStr = timeAgo(n.created_at);
-    
-    const descHtml = n.item_description ? `<p class="hint" style="font-style:italic;color:#888;margin-top:.25rem">${escapeHtml(n.item_description)}</p>` : '';
-    
-    div.innerHTML = `
-      ${typeLabel}
-      <strong>${escapeHtml(n.item_title || 'Unknown Item')}</strong>
-      ${descHtml}
-      <p class="hint"><strong>Moderator:</strong> ${escapeHtml(n.moderator_name)}</p>
-      <p class="hint"><strong>Reason:</strong> ${escapeHtml(n.reason)}</p>
-      <p class="hint" style="font-size:.75rem;color:var(--text-muted)">${timeStr}</p>
-    `;
-    
-    list.appendChild(div);
-    
-    if(!n.is_read) unreadIds.push(n.id);
-  });
-  
-  // Mark all as read
-  if(unreadIds.length > 0) {
-    await ApiService.markNotificationsRead(unreadIds);
-  }
-}
-
-// On load
-window.addEventListener('DOMContentLoaded', async () => {
   try {
-    setup();
+    const res = await ApiService.apiRequest('/auth/ban-ip', {
+      method: 'POST',
+      body: JSON.stringify({ ip, reason })
+    });
     
-    // Start API status monitoring
-    startApiStatusMonitoring();
-  } catch(error) {
-    console.error('Setup error:', error);
-  } finally {
-    // Always hide loading screen after setup attempt
-    setTimeout(() => {
-      const loadingScreen = document.getElementById('loading-screen');
-      if(loadingScreen) {
-        loadingScreen.style.opacity = '0';
-        loadingScreen.style.transition = 'opacity 0.3s ease-out';
-        setTimeout(() => {
-          loadingScreen.remove();
-        }, 300);
-      }
-    }, 100); // Minimal delay for faster perceived performance
+    if (res && res.success) {
+      showMessage('IP banned successfully', 'success');
+      ipInput.value = '';
+      reasonInput.value = '';
+      await loadBannedIps();
+    } else {
+      showMessage(res?.error || 'Failed to ban IP', 'error');
+    }
+  } catch (e) {
+    console.error('Error banning IP:', e);
+    showMessage('Error banning IP. Check console for details.', 'error');
   }
-});
+}
 
-// Fallback: ensure loading screen never persists beyond 5s even on errors
-setTimeout(() => {
-  const loadingScreen = document.getElementById('loading-screen');
-  if(loadingScreen) {
-    loadingScreen.remove();
-    console.warn('Loading screen removed by fallback timeout');
+// In setup()
+const btnAdminManageIps = qs('#admin-manage-ips-btn');
+if (btnAdminManageIps) {
+  btnAdminManageIps.addEventListener('click', showIpModal);
+}
+
+const btnIpClose = qs('#ip-close');
+if (btnIpClose) {
+  btnIpClose.addEventListener('click', hideIpModal);
+}
+
+const btnIpCloseBottom = qs('#ip-close-bottom');
+if (btnIpCloseBottom) {
+  btnIpCloseBottom.addEventListener('click', hideIpModal);
+}
+
+const btnIpBan = qs('#ip-ban-btn');
+if (btnIpBan) {
+  btnIpBan.addEventListener('click', banIp);
+  
+  // Also allow pressing Enter in the IP input to submit
+  const ipBanInput = qs('#ip-ban-input');
+  if (ipBanInput) {
+    ipBanInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        banIp();
+      }
+    });
   }
-}, 5000);
+}

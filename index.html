@@ -426,7 +426,8 @@
         <span id="admin-page-label" class="hint"></span>
         <button id="admin-next" class="btn btn-small">Next</button>
       </div>
-      <div class="form-actions">
+      <div class="form-actions" style="margin-top:2rem;">
+        <button id="admin-manage-ips-btn" class="btn btn-accent">Manage IPs</button>
         <button id="admin-close" class="btn">Close</button>
       </div>
     </div>
@@ -567,5 +568,63 @@
     </div>
   </div>
 
+  <!-- IP Management Modal -->
+  <div id="ip-modal" class="modal hidden">
+    <div class="modal-inner modal-inner-dark" style="max-width: 1000px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-shrink: 0;">
+        <h2 style="margin: 0;">IP Address Management</h2>
+        <button id="ip-close" class="btn btn-small" style="margin: 0;">✕</button>
+      </div>
+      
+      <div style="flex: 1; display: flex; gap: 1.5rem; min-height: 0;">
+        <!-- Left column: Users and their IPs -->
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div id="ip-users-list" style="flex: 1; overflow-y: auto;"></div>
+        </div>
+        
+        <!-- Right column: Banned IPs -->
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; border-left: 1px solid #444; padding-left: 1.5rem;">
+          <div style="margin-bottom: 1.5rem;">
+            <h3 style="margin-top: 0; margin-bottom: 1rem;">Ban New IP Address</h3>
+            <div id="ip-controls" class="admin-controls">
+              <input id="ip-ban-input" type="text" placeholder="IP address to ban (e.g. 123.123.123.123)" style="flex: 1;" />
+              <input id="ip-ban-reason-input" type="text" placeholder="Reason (optional)" style="flex: 1;" />
+              <button id="ip-ban-btn" class="btn btn-accent">Ban IP</button>
+            </div>
+          </div>
+          
+          <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+            <h3 style="margin: 0 0 1rem 0;">Banned IP Addresses</h3>
+            <div id="ip-banned-list" style="flex: 1; overflow-y: auto; border: 1px solid #444; border-radius: 4px; padding: 0.5rem; background: rgba(0,0,0,0.2);"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-actions" style="margin-top: 1.5rem; flex-shrink: 0;">
+        <button id="ip-close-bottom" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Files -->
+  <script src="config.js"></script>
+  <script src="api-service.js"></script>
+  <script src="items.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Initialize the application when the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Hide loading screen after everything is loaded
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) {
+        loadingScreen.style.display = 'none';
+      }
+      
+      // Initialize the app
+      if (typeof setup === 'function') {
+        setup();
+      }
+    });
+  </script>
 </body>
 </html>

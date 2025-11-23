@@ -11,6 +11,13 @@ router.post('/register', async (req, res) => {
   const { email, password, displayName, bio, avatar, discord } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
+    // Check if IP is banned
+    const userIp = req.ip;
+    const banned = await query('SELECT id, reason FROM banned_ips WHERE ip_address = $1', [userIp]);
+    if (banned.rowCount) {
+      return res.status(403).json({ error: `Registration blocked for this IP. Reason: ${banned.rows[0].reason || 'Banned'}` });
+    }
+
     const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
     if (existing.rowCount) return res.status(409).json({ error: 'Email already in use' });
 
@@ -26,6 +33,12 @@ router.post('/register', async (req, res) => {
     );
     const userId = result.rows[0].id;
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(userId), expiresIn: '7d' });
+    
+    // Track the user's IP address
+    const userIp2 = req.ip;
+    const userAgent = req.get('user-agent');
+    await query('SELECT update_user_ip($1, $2, $3)', [userId, userIp2, userAgent]);
+    
     return res.status(201).json({ token });
   } catch (e) {
     console.error(e);
@@ -37,6 +50,13 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
+    // Check if IP is banned
+    const loginIp = req.ip;
+    const banned = await query('SELECT id, reason FROM banned_ips WHERE ip_address = $1', [loginIp]);
+    if (banned.rowCount) {
+      return res.status(403).json({ error: `Login blocked for this IP. Reason: ${banned.rows[0].reason || 'Banned'}` });
+    }
+
     const ures = await query('SELECT id, password_hash, banned_until, banned_reason FROM users WHERE email = $1', [email.toLowerCase()]);
     if (!ures.rowCount) return res.status(401).json({ error: 'Invalid credentials' });
     const user = ures.rows[0];
@@ -50,12 +70,47 @@ router.post('/login', async (req, res) => {
     
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    
+    // Track the user's IP 
+    const loginIp2 = req.ip;
+    const userAgent = req.get('User-Agent');
+    try {
+      await query('SELECT update_user_ip($1, $2, $3)', [user.id, loginIp2, userAgent]);
+    } catch (e) {
+      console.error('Error updating user IP:', e);
+    }
+    
     const token = jwt.sign({}, process.env.JWT_SECRET, { subject: String(user.id), expiresIn: '7d' });
     return res.json({ token });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: 'Server error' });
   }
+// Admin: View all banned IPs
+router.get('/banned-ips', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const r = await query('SELECT id, ip_address, reason, banned_by, created_at FROM banned_ips ORDER BY created_at DESC', []);
+    return res.json(r.rows);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin: Ban an IP address
+router.post('/ban-ip', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Admin only' });
+  const { ip, reason } = req.body || {};
+  if (!ip) return res.status(400).json({ error: 'IP address required' });
+  try {
+    await query('INSERT INTO banned_ips (ip_address, reason, banned_by) VALUES ($1, $2, $3) ON CONFLICT (ip_address) DO UPDATE SET reason = $2, banned_by = $3, created_at = NOW()', [ip, reason || '', req.user.id]);
+    return res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 });
 
 router.get('/me', requireAuth, async (req, res) => {
@@ -171,6 +226,36 @@ router.put('/password', requireAuth, async (req, res) => {
 });
 
 // Get all users (admin and mod access)
+// Get all users with their IP addresses (admin only)
+router.get('/users-with-ips', requireAuth, async (req, res) => {
+  try {
+    // Check if requester is admin
+    const userCheck = await query('SELECT is_admin FROM users WHERE id = $1', [req.user.id]);
+    if (!userCheck.rowCount || !userCheck.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    // Get all users with their IP addresses
+    const result = await query(`
+      SELECT 
+        u.id, u.email, u.display_name, u.is_admin, u.is_mod, u.banned_until,
+        json_agg(DISTINCT ui.ip_address) as ip_addresses
+      FROM users u
+      LEFT JOIN user_ips ui ON u.id = ui.user_id
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
+    `);
+    
+    return res.json(result.rows.map(row => ({
+      ...row,
+      ip_addresses: row.ip_addresses.filter(ip => ip !== null)
+    })));
+  } catch (e) {
+    console.error('Error fetching users with IPs:', e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.get('/users', requireAuth, async (req, res) => {
   try {
     // Check if requester is admin or mod
